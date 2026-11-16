@@ -15,6 +15,7 @@
     <a class="brand" href="/">lembed</a>
     <nav aria-label="main navigation">
       <a href="#how-it-works" class="quiet-link">how it works</a>
+      <button type="button" class="text-button" id="account-button">sign in</button>
       <button type="button" class="button secondary small" id="show-cards">your cards <span id="card-count">0</span></button>
     </nav>
   </header>
@@ -22,7 +23,7 @@
   <main>
     <section id="saved-cards" class="saved-cards page-width" hidden aria-labelledby="saved-heading">
       <div class="section-title"><h2 id="saved-heading">your cards</h2><button type="button" class="text-button" id="close-cards">close ×</button></div>
-      <p class="hint">saved in this browser. clearing cookies removes your edit access.</p>
+      <p class="hint">saved to your account. sign in with your token on any device.</p>
       <div id="saved-list"></div>
     </section>
     <div class="intro page-width">
@@ -69,7 +70,7 @@
             <p id="slug-hint" class="hint">lowercase letters, numbers, and hyphens.</p>
             <p class="form-status" id="form-status" role="status" aria-live="polite"></p>
             <button id="publish-button" class="button primary publish-button" type="submit">publish card <span aria-hidden="true">↗</span></button>
-            <p class="privacy-note">no sign-up. this browser keeps your edit access.</p>
+            <p class="privacy-note">save cards with a sign-in token. no email or password.</p>
           </div>
         </form>
       </section>
@@ -122,6 +123,34 @@
     </section>
   </main>
   <footer class="site-footer page-width"><span>lembed</span><span>give good things a good entrance.</span></footer>
+  <dialog id="account-dialog" aria-labelledby="account-heading">
+    <div class="section-title"><h2 id="account-heading">your cards, anywhere.</h2><button type="button" class="text-button" id="close-account" aria-label="close account dialog">close ×</button></div>
+    <div id="account-signed-out">
+      <p class="hint">create an account to get a sign-in token. save it in a password manager — it is your only way back in.</p>
+      <button type="button" id="create-account" class="button primary">create account</button>
+      <form id="sign-in-form">
+        <label for="sign-in-token">already have a token?</label>
+        <input id="sign-in-token" type="password" placeholder="paste your lembed token" autocomplete="current-password" spellcheck="false" required>
+        <button type="submit" class="button secondary">sign in</button>
+      </form>
+    </div>
+    <div id="account-new-token" hidden>
+      <p>save your sign-in token somewhere safe.</p>
+      <p class="hint">shown once. anyone with it can edit your cards. we cannot recover it for you.</p>
+      <label for="new-token">your sign-in token</label>
+      <input id="new-token" type="password" readonly autocomplete="off" aria-describedby="token-help">
+      <div class="token-actions"><button type="button" class="button secondary" id="copy-token">copy token</button><button type="button" class="button secondary" id="download-token">download token</button></div>
+      <p id="token-help" class="hint">a password manager is best. if downloaded, move the file somewhere private.</p>
+      <label class="token-confirm"><input type="checkbox" id="token-saved">i saved my token somewhere safe</label>
+      <button type="button" id="finish-account" class="button primary" disabled>continue</button>
+    </div>
+    <div id="account-signed-in" hidden>
+      <p>you’re signed in. your cards are saved to your account.</p>
+      <p class="hint">use your saved token to sign in on another device. keep it private.</p>
+      <button type="button" id="sign-out" class="button secondary">sign out</button>
+    </div>
+    <p id="account-error" class="form-status" role="status" aria-live="polite"></p>
+  </dialog>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 </body>
 </html>

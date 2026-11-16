@@ -1,3 +1,0 @@
-lembed.ryana.dev {
-    reverse_proxy app:3000
-}

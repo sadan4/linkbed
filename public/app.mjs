@@ -10,6 +10,11 @@ let slugEdited = false;
 let pending = false;
 let lockedControls = [];
 let toastTimer;
+let authenticated = false;
+let newToken = '';
+let authBusy = false;
+let authControls = [];
+let refreshVersion = 0;
 
 function element(tag, text, className) {
   const node = document.createElement(tag);
@@ -128,7 +133,7 @@ function update() {
 function setPending(value) {
   pending = value;
   if (value) {
-    lockedControls = [...document.querySelectorAll('#card-form input, #card-form textarea, #card-form button, #reset, #saved-list button')].map(control => [control, control.disabled]);
+    lockedControls = [...document.querySelectorAll('#card-form input, #card-form textarea, #card-form button, #reset, #saved-list button, #account-button')].map(control => [control, control.disabled]);
     lockedControls.forEach(([control]) => { control.disabled = true; });
     $('#card-form').setAttribute('aria-busy', 'true');
   } else {
@@ -167,8 +172,16 @@ async function api(path, options = {}) {
 }
 
 async function refreshCards() {
+  const version = ++refreshVersion;
   try {
-    saved = await api('/api/cards');
+    const session = await api('/api/session');
+    const cards = session.authenticated ? await api('/api/cards') : [];
+    if (version !== refreshVersion) return;
+    authenticated = session.authenticated;
+    $('#account-button').textContent = authenticated ? 'account' : 'sign in';
+    $('#account-signed-out').hidden = authenticated;
+    $('#account-signed-in').hidden = !authenticated || !!newToken;
+    saved = cards;
     $('#card-count').textContent = saved.length;
     $('#saved-list').replaceChildren(...saved.map(card => {
       const row = element('div', undefined, 'saved-row');
@@ -202,8 +215,9 @@ async function refreshCards() {
       row.append(info, edit, remove);
       return row;
     }));
-    if (!saved.length) $('#saved-list').append(element('p', 'your published cards will appear here.', 'hint'));
+    if (!saved.length) $('#saved-list').append(element('p', authenticated ? 'your published cards will appear here.' : 'sign in to see your saved cards.', 'hint'));
   } catch (error) {
+    if (version !== refreshVersion) return;
     $('#form-status').textContent = 'could not load your cards. ' + error.message;
   }
 }
@@ -228,7 +242,11 @@ $('#card-form').addEventListener('input', event => {
 $('#add-button').addEventListener('click', () => { addButton(); changed(); $('#button-list').lastChild.querySelector('input').focus(); });
 document.querySelectorAll('[data-color]').forEach(button => button.addEventListener('click', () => { fields.color.value = button.dataset.color; changed(); }));
 $('#reset').addEventListener('click', () => reset());
-$('#show-cards').addEventListener('click', () => { $('#saved-cards').hidden = !$('#saved-cards').hidden; refreshCards(); });
+$('#show-cards').addEventListener('click', () => {
+  if (!authenticated) { openAccount(); return; }
+  $('#saved-cards').hidden = !$('#saved-cards').hidden;
+  refreshCards();
+});
 $('#close-cards').addEventListener('click', () => { $('#saved-cards').hidden = true; });
 
 const templates = {
@@ -270,6 +288,7 @@ $('#card-form').addEventListener('submit', async event => {
   event.preventDefault();
   if (pending) return;
   $('#form-status').textContent = '';
+  if (!authenticated) { openAccount(); return; }
   const button = $('#publish-button');
   try {
     const card = normalizeCard(draft());
@@ -309,7 +328,106 @@ $('#copy-fresh').addEventListener('click', () => published && copy(published.fre
 $('#copy-code').addEventListener('click', () => {
   try { normalizeCard(draft()); copy($('#embed-code').value); } catch (error) { $('#form-status').textContent = error.message; }
 });
-window.addEventListener('beforeunload', event => { if (dirty) { event.preventDefault(); event.returnValue = ''; } });
+window.addEventListener('beforeunload', event => { if (dirty || newToken || authBusy) { event.preventDefault(); event.returnValue = ''; } });
+
+
+function openAccount() {
+  if (pending || authBusy) return;
+  $('#account-error').textContent = '';
+  $('#account-signed-out').hidden = authenticated;
+  $('#account-new-token').hidden = !newToken;
+  $('#account-signed-in').hidden = !authenticated || !!newToken;
+  $('#close-account').hidden = !!newToken;
+  $('#account-dialog').showModal();
+}
+$('#account-button').addEventListener('click', openAccount);
+$('#close-account').addEventListener('click', () => { if (!authBusy && !newToken) $('#account-dialog').close(); });
+$('#account-dialog').addEventListener('cancel', event => { if (newToken || authBusy) event.preventDefault(); });
+
+function setAuthBusy(value) {
+  authBusy = value;
+  if (value) {
+    refreshVersion++;
+    authControls = [...document.querySelectorAll('#account-dialog button, #account-dialog input')].map(control => [control, control.disabled]);
+    authControls.forEach(([control]) => { control.disabled = true; });
+    $('#account-dialog').setAttribute('aria-busy', 'true');
+  } else {
+    authControls.forEach(([control, disabled]) => { control.disabled = disabled; });
+    $('#account-dialog').removeAttribute('aria-busy');
+    $('#finish-account').disabled = !$('#token-saved').checked;
+  }
+}
+
+async function accountRequest(path, data) {
+  $('#account-error').textContent = '';
+  try { return await api(path, { method: 'POST', body: JSON.stringify(data || {}) }); }
+  catch (error) { $('#account-error').textContent = error.message; }
+}
+
+$('#create-account').addEventListener('click', async () => {
+  if (authBusy) return;
+  setAuthBusy(true);
+  const result = await accountRequest('/api/signup');
+  if (!result) { setAuthBusy(false); return; }
+  authenticated = true;
+  newToken = result.token;
+  $('#new-token').value = newToken;
+  $('#token-saved').checked = false;
+  $('#finish-account').disabled = true;
+  $('#account-new-token').hidden = false;
+  $('#account-signed-out').hidden = true;
+  $('#close-account').hidden = true;
+  await refreshCards();
+  setAuthBusy(false);
+});
+$('#sign-in-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  if (authBusy) return;
+  setAuthBusy(true);
+  const result = await accountRequest('/api/login', { token: $('#sign-in-token').value.trim() });
+  if (!result) { setAuthBusy(false); return; }
+  $('#sign-in-token').value = '';
+  authenticated = true;
+  $('#account-dialog').close();
+  if (editing) reset(false);
+  await refreshCards();
+  setAuthBusy(false);
+  toast('signed in.');
+});
+$('#copy-token').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText(newToken); toast('token copied. save it in your password manager.'); }
+  catch { $('#account-error').textContent = 'clipboard unavailable. download your token instead.'; }
+});
+$('#download-token').addEventListener('click', () => {
+  const url = URL.createObjectURL(new Blob(['lembed sign-in token\n' + newToken + '\n\nkeep this private. anyone with it can edit your cards.\nsign in at ' + location.origin + '\n'], { type: 'text/plain' }));
+  const link = element('a');
+  link.href = url;
+  link.download = 'lembed-sign-in-token.txt';
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+});
+$('#token-saved').addEventListener('change', () => { $('#finish-account').disabled = !$('#token-saved').checked; });
+$('#finish-account').addEventListener('click', () => {
+  newToken = '';
+  $('#new-token').value = '';
+  $('#account-new-token').hidden = true;
+  $('#close-account').hidden = false;
+  $('#account-dialog').close();
+  toast('account ready. you can publish your card.');
+});
+$('#sign-out').addEventListener('click', async () => {
+  if (authBusy) return;
+  if (dirty && !confirm('sign out and discard your unsaved changes?')) return;
+  setAuthBusy(true);
+  const result = await accountRequest('/api/logout');
+  if (!result) { setAuthBusy(false); return; }
+  authenticated = false;
+  $('#account-dialog').close();
+  reset(false);
+  await refreshCards();
+  setAuthBusy(false);
+  toast('signed out.');
+});
 
 reset(false);
 refreshCards();

@@ -44,32 +44,52 @@ test('metadata import parses entities, relative images and fallbacks without exe
   assert.deepEqual(metadataFromHtml('<meta property="og:image" content="http://127.0.0.1/x">', 'https://example.com').images, []);
 });
 
-test('publish, SSR, ownership, update, restart persistence and delete', async () => {
+test('token accounts, ownership, logout, expiry, SSR and restart persistence', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'lembed-test-'));
   const dbPath = join(directory, 'cards.sqlite');
-  let server;
-  let base;
+  let server, close, base;
   const start = async () => {
-    server = createApp({ dbPath }).server;
+    ({ server, close } = createApp({ dbPath }));
     server.listen(0, '127.0.0.1');
     await once(server, 'listening');
     base = `http://127.0.0.1:${server.address().port}`;
   };
-  const stop = async () => { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); };
+  const stop = async () => {
+    server.closeAllConnections();
+    await new Promise(resolve => server.close(resolve));
+    await close();
+  };
+  const request = (path, method = 'GET', data, owner = '', origin = 'http://localhost:3000') => fetch(base + path, {
+    method, headers: { 'content-type': 'application/json', origin, cookie: owner },
+    body: data === undefined ? undefined : JSON.stringify(data),
+  });
   await start();
   try {
-    const initial = await fetch(base + '/api/cards');
-    const cookie = initial.headers.get('set-cookie').split(';')[0];
-    assert.ok(initial.headers.get('set-cookie').includes('HttpOnly'));
-    const request = (path, method, data, owner = cookie, origin = 'http://localhost:3000') => fetch(base + path, { method, headers: { 'content-type': 'application/json', origin, cookie: owner }, body: data === undefined ? undefined : JSON.stringify(data) });
-    assert.equal((await request('/api/cards', 'POST', { ...card, slug: 'launch' }, cookie, 'https://evil.example')).status, 403);
-    assert.equal((await request('/api/cards', 'POST', null)).status, 400);
-    assert.equal((await request('/api/cards', 'POST', { ...card, slug: '../escape' })).status, 400);
-    assert.equal((await request('/api/cards', 'POST', { ...card, slug: 'private', url: 'https://127.0.0.1/' })).status, 400);
-    const created = await request('/api/cards', 'POST', { ...card, title: '<script>alert(1)</script>', slug: 'launch' });
+    assert.equal((await request('/api/cards')).status, 401);
+    assert.equal((await request('/api/signup', 'POST', {}, '', 'https://evil.example')).status, 403);
+    const signup = await request('/api/signup', 'POST', {});
+    assert.equal(signup.status, 201);
+    const { token } = await signup.json();
+    assert.match(token, /^lembed_[A-Za-z0-9_-]{43}$/);
+    let session = signup.headers.get('set-cookie').split(';')[0];
+    assert.ok(signup.headers.get('set-cookie').includes('HttpOnly'));
+    assert.ok(signup.headers.get('set-cookie').includes('SameSite=Strict'));
+    assert.ok(!session.includes(token));
+    const { DatabaseSync } = await import('node:sqlite');
+    const inspect = new DatabaseSync(dbPath);
+    const account = inspect.prepare('SELECT token_hash FROM accounts').get();
+    assert.equal(account.token_hash.length, 64);
+    assert.notEqual(account.token_hash, token);
+    assert.ok(!JSON.stringify(inspect.prepare('SELECT * FROM sessions').all()).includes(session.split('=')[1]));
+    inspect.close();
+
+    assert.equal((await request('/api/cards', 'POST', null, session)).status, 400);
+    assert.equal((await request('/api/cards', 'POST', { ...card, slug: '../escape' }, session)).status, 400);
+    assert.equal((await request('/api/cards', 'POST', { ...card, slug: 'private', url: 'https://127.0.0.1/' }, session)).status, 400);
+    const created = await request('/api/cards', 'POST', { ...card, title: '<script>alert(1)</script>', slug: 'launch' }, session);
     assert.equal(created.status, 201);
     assert.equal((await created.json()).revision, 1);
-    assert.equal((await request('/api/cards', 'POST', { ...card, slug: 'launch' })).status, 409);
+    assert.equal((await request('/api/cards', 'POST', { ...card, slug: 'launch' }, session)).status, 409);
     const page = await fetch(base + '/p/launch', { headers: { 'user-agent': 'Discordbot/2.0' } });
     const html = await page.text();
     assert.equal(page.status, 200);
@@ -78,18 +98,70 @@ test('publish, SSR, ownership, update, restart persistence and delete', async ()
     assert.ok(!html.includes('<script>alert(1)</script>'));
     const payload = JSON.parse(html.match(/<script id="discord:component-embed" type="application\/json">(.+?)<\/script>/s)[1]);
     assert.equal(payload.component.type, 17);
-    assert.equal((await request('/api/cards/launch', 'PUT', card, '')).status, 404);
-    assert.equal((await request('/api/cards/launch', 'DELETE', undefined, '')).status, 404);
-    const updated = await request('/api/cards/launch', 'PUT', { ...card, title: 'updated' });
+    assert.equal((await request('/api/index?card=launch')).status, 200);
+
+    const otherSignup = await request('/api/signup', 'POST', {});
+    const otherSession = otherSignup.headers.get('set-cookie').split(';')[0];
+    assert.equal((await request('/api/cards/launch', 'PUT', card, otherSession)).status, 404);
+    assert.equal((await request('/api/cards/launch', 'DELETE', undefined, otherSession)).status, 404);
+    const updated = await request('/api/cards/launch', 'PUT', { ...card, title: 'updated' }, session);
     assert.equal((await updated.json()).revision, 2);
+
+    await request('/api/logout', 'POST', {}, session);
+    assert.equal((await request('/api/session', 'GET', undefined, session).then(r => r.json())).authenticated, false);
+    assert.equal((await request('/api/cards', 'GET', undefined, session)).status, 401);
+    assert.equal((await request('/api/login', 'POST', { token: 'wrong' })).status, 401);
+    const login = await request('/api/login', 'POST', { token });
+    assert.equal(login.status, 200);
+    session = login.headers.get('set-cookie').split(';')[0];
+    assert.equal((await login.json()).token, undefined);
+    assert.equal((await request('/api/cards', 'GET', undefined, session).then(r => r.json()))[0].title, 'updated');
+
     await stop();
     await start();
-    const restored = await fetch(base + '/api/cards/launch', { headers: { cookie } });
+    const restored = await request('/api/cards/launch', 'GET', undefined, session);
     assert.equal((await restored.json()).title, 'updated');
-    assert.equal((await request('/api/cards/launch', 'DELETE')).status, 200);
+
+    const expiry = new DatabaseSync(dbPath);
+    expiry.prepare('UPDATE sessions SET expires_at = 0').run();
+    expiry.close();
+    assert.equal((await request('/api/cards', 'GET', undefined, session)).status, 401);
+    const relogin = await request('/api/login', 'POST', { token });
+    session = relogin.headers.get('set-cookie').split(';')[0];
+    assert.equal((await request('/api/cards/launch', 'DELETE', undefined, session)).status, 200);
     assert.equal((await fetch(base + '/p/launch')).status, 404);
   } finally {
     await stop();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('auth throttling persists and legacy local cards migrate on account creation', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'lembed-auth-'));
+  const dbPath = join(directory, 'cards.sqlite');
+  const { server, close } = createApp({ dbPath });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const headers = { 'content-type': 'application/json', origin: 'http://localhost:3000' };
+  try {
+    await fetch(base + '/healthz');
+    const { DatabaseSync } = await import('node:sqlite');
+    const { createHash } = await import('node:crypto');
+    const legacyToken = 'a'.repeat(64);
+    const inspect = new DatabaseSync(dbPath);
+    inspect.prepare('INSERT INTO cards VALUES (?, ?, ?, 1, ?)').run('old-card', createHash('sha256').update(legacyToken).digest('hex'), JSON.stringify(card), Date.now());
+    inspect.close();
+    const signup = await fetch(base + '/api/signup', { method: 'POST', headers: { ...headers, cookie: 'lembed_owner=' + legacyToken }, body: '{}' });
+    const session = signup.headers.get('set-cookie').split(';')[0];
+    const cards = await fetch(base + '/api/cards', { headers: { cookie: session } }).then(r => r.json());
+    assert.equal(cards[0].slug, 'old-card');
+    for (let i = 0; i < 9; i++) assert.equal((await fetch(base + '/api/login', { method: 'POST', headers, body: '{"token":"wrong"}' })).status, 401);
+    assert.equal((await fetch(base + '/api/login', { method: 'POST', headers, body: '{"token":"wrong"}' })).status, 429);
+  } finally {
+    server.closeAllConnections();
+    await new Promise(resolve => server.close(resolve));
+    await close();
     rmSync(directory, { recursive: true, force: true });
   }
 });

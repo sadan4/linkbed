@@ -172,6 +172,22 @@ summary::-webkit-details-marker { display: none; }
 .site-footer { border-top: 1px solid var(--line); padding-block: 25px; display: flex; justify-content: space-between; color: var(--muted); font-size: 11px; }
 .site-footer span:first-child { font-weight: 650; color: var(--ink); }
 .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); border-radius: 6px; background: var(--ink); color: var(--bg); padding: 10px 18px; font-size: 12px; z-index: 2; }
+
+dialog { width: min(440px, calc(100% - 32px)); border: 1px solid var(--line); border-radius: 12px; padding: 28px; color: var(--ink); background: var(--bg); }
+dialog::backdrop { background: oklch(0.15 0 0 / 0.5); }
+dialog h2 { font-size: 20px; letter-spacing: -0.4px; }
+dialog p { font-size: 13px; }
+dialog .hint { font-size: 12px; margin-bottom: 18px; }
+dialog #create-account { margin-top: 2px; }
+#sign-in-form { border-top: 1px solid var(--line); margin-top: 24px; padding-top: 22px; }
+#sign-in-form button { margin-top: 10px; }
+#account-new-token label { margin-top: 18px; }
+#new-token, #sign-in-token { font-family: ui-monospace, monospace; }
+.token-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.token-confirm { justify-content: start; font-weight: 400; line-height: 1.5; gap: 8px; }
+.token-confirm input { width: 16px; height: 16px; flex: 0 0 16px; }
+#finish-account { margin-top: 8px; }
+
 .public-page { background: var(--surface); min-height: 100vh; }
 .public-header { max-width: 900px; margin-inline: auto; display: flex; justify-content: space-between; align-items: center; padding: 30px 24px; gap: 20px; }
 .public-content { max-width: 680px; padding: 50px 24px; margin: auto; }
