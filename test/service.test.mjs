@@ -23,6 +23,8 @@ test('payload uses one container, link buttons, escaped script text and byte lim
   assert.throws(() => normalizeCard({ ...card, buttons: Array(6).fill(card.buttons[0]) }), /five/);
   assert.throws(() => normalizeCard({ ...card, images: Array(11).fill('https://example.com/a.png') }), /ten/);
   assert.throws(() => normalizeCard({ ...card, url: 'javascript:alert(1)' }), /https/);
+  assert.throws(() => normalizeCard({ ...card, color: ['#abcdef'] }), /color/);
+  assert.throws(() => normalizeCard({ ...card, buttons: [{ label: 'visit', url: 'https://example.com/' + '界'.repeat(60) }] }), /encoding/);
 });
 
 test('URL import rejects private and disguised addresses, validates every DNS result', async () => {

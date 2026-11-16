@@ -8,6 +8,7 @@ export function httpsUrl(value, label = 'url', max = 2048) {
   if (typeof value !== 'string' || value.length > max) throw new ValidationError(`${label} is too long.`);
   let url;
   try { url = new URL(value); } catch { throw new ValidationError(`enter a valid ${label}.`); }
+  if (url.href.length > max) throw new ValidationError(`${label} is too long after url encoding.`);
   if (url.protocol !== 'https:' || url.username || url.password || (url.port && url.port !== '443')) {
     throw new ValidationError(`${label} must use https, without a password or custom port.`);
   }
@@ -31,7 +32,7 @@ export function normalizeCard(value) {
   const description = text(value.description ?? '', 'description', 1200);
   const url = httpsUrl(value.url, 'destination url', 512);
   const color = value.color ?? '#5865f2';
-  if (!/^#[0-9a-f]{6}$/i.test(color)) throw new ValidationError('choose a six-digit hex color.');
+  if (typeof color !== 'string' || !/^#[0-9a-f]{6}$/i.test(color)) throw new ValidationError('choose a six-digit hex color.');
   if (!Array.isArray(value.buttons) || value.buttons.length > 5) throw new ValidationError('use up to five buttons.');
   if (!Array.isArray(value.images) || value.images.length > 10) throw new ValidationError('use up to ten images.');
   const buttons = value.buttons.map(button => ({

@@ -7,6 +7,8 @@ let published = null;
 let saved = [];
 let dirty = false;
 let slugEdited = false;
+let pending = false;
+let lockedControls = [];
 let toastTimer;
 
 function element(tag, text, className) {
@@ -84,12 +86,12 @@ function update() {
   $('#title-count').textContent = card.title.length + ' / 100';
   $('#button-count').textContent = card.buttons.length + ' / 5';
   $('#image-count').textContent = card.images.length + ' / 10';
-  $('#add-button').disabled = card.buttons.length >= 5;
+  $('#add-button').disabled = pending || card.buttons.length >= 5;
   $('#preview-title').textContent = card.title || 'your next good thing.';
   $('#preview-description').replaceChildren(previewMarkdown(card.description || 'a launch, a project, an open invitation.\ngive it a title. let the card do the talking.'));
   $('#preview-url').textContent = location.host + '/p/' + (fields.slug.value || 'your-next-thing');
   $('#preview-card').style.borderColor = card.color;
-  const buttons = card.buttons.length ? card.buttons : [{ label: 'take a look', url: '' }];
+  const buttons = card.buttons;
   $('#preview-buttons').replaceChildren(...buttons.map(button => {
     let url;
     try { url = httpsUrl(button.url); } catch {}
@@ -115,12 +117,26 @@ function update() {
   $('#byte-count').textContent = bytes.toLocaleString() + ' / 3,000 bytes';
   $('#byte-count').classList.toggle('over-limit', bytes > MAX_BYTES);
   $('#preview-warning').textContent = bytes > MAX_BYTES ? 'too much for one card. shorten text or remove links and images.' : '';
-  $('#publish-button').disabled = bytes > MAX_BYTES;
+  $('#publish-button').disabled = pending || bytes > MAX_BYTES;
   $('#publish-button').firstChild.textContent = editing ? 'publish changes ' : 'publish card ';
   document.querySelectorAll('[data-color]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.color === card.color)));
   $('#embed-code').value = embedScript(card);
   $('#copy-code').disabled = !card.title || !card.url || bytes > MAX_BYTES;
   $('#publish-result').hidden = !published || dirty;
+}
+
+function setPending(value) {
+  pending = value;
+  if (value) {
+    lockedControls = [...document.querySelectorAll('#card-form input, #card-form textarea, #card-form button, #reset, #saved-list button')].map(control => [control, control.disabled]);
+    lockedControls.forEach(([control]) => { control.disabled = true; });
+    $('#card-form').setAttribute('aria-busy', 'true');
+  } else {
+    lockedControls.forEach(([control, disabled]) => { control.disabled = disabled; });
+    fields.slug.disabled = !!editing;
+    $('#card-form').removeAttribute('aria-busy');
+    update();
+  }
 }
 
 function changed() {
@@ -161,6 +177,7 @@ async function refreshCards() {
       const edit = element('button', 'edit', 'text-button');
       edit.type = 'button';
       edit.addEventListener('click', () => {
+        if (pending) return;
         if (dirty && !confirm('replace your unsaved draft with this card?')) return;
         editing = card.slug;
         slugEdited = true;
@@ -173,6 +190,7 @@ async function refreshCards() {
       const remove = element('button', 'delete', 'text-button delete-button');
       remove.type = 'button';
       remove.addEventListener('click', async () => {
+        if (pending) return;
         if (!confirm('delete this published card? its link will stop working.')) return;
         try {
           await api('/api/cards/' + card.slug, { method: 'DELETE' });
@@ -191,6 +209,7 @@ async function refreshCards() {
 }
 
 function reset(ask = true) {
+  if (pending) return;
   if (ask && dirty && !confirm('start a new card and discard this draft?')) return;
   editing = null;
   published = null;
@@ -218,19 +237,22 @@ const templates = {
   event: { title: 'save you a seat?', description: 'good people, fresh ideas, and a reason to step away from your desk.\n\nall the details are one click away.', buttons: [{ label: 'event details', url: 'https://example.com/' }, { label: 'save your spot', url: 'https://example.com/register' }] },
 };
 document.querySelectorAll('[data-template]').forEach(button => button.addEventListener('click', () => {
+  if (pending) return;
   if (dirty && !confirm('replace your unsaved content with this template?')) return;
   const template = templates[button.dataset.template];
-  const source = fields.url.value || 'https://example.com/';
-  fill({ ...draft(), ...template, url: source, buttons: template.buttons.map((button, index) => ({ ...button, url: index ? new URL(button.url).pathname === '/' ? source : new URL(new URL(button.url).pathname, source).href : source })) }, editing || slugify(template.title));
+  let source = 'https://example.com/';
+  try { source = httpsUrl(fields.url.value); } catch {}
+  fill({ ...draft(), ...template, url: source, buttons: template.buttons.map((button, index) => ({ ...button, url: index ? new URL(new URL(button.url).pathname, source).href : source })) }, editing || slugify(template.title));
   changed();
 }));
 
 $('#import-button').addEventListener('click', async () => {
+  if (pending) return;
   const button = $('#import-button');
   $('#form-status').textContent = '';
   try {
     httpsUrl(fields.url.value.trim());
-    button.disabled = true;
+    setPending(true);
     button.textContent = 'importing…';
     const card = await api('/api/import', { method: 'POST', body: JSON.stringify({ url: fields.url.value.trim() }) });
     fill(card, editing || (slugEdited ? fields.slug.value : slugify(card.title)));
@@ -239,18 +261,19 @@ $('#import-button').addEventListener('click', async () => {
   } catch (error) {
     $('#form-status').textContent = error.message;
   } finally {
-    button.disabled = false;
+    setPending(false);
     button.textContent = 'import ↓';
   }
 });
 
 $('#card-form').addEventListener('submit', async event => {
   event.preventDefault();
+  if (pending) return;
   $('#form-status').textContent = '';
   const button = $('#publish-button');
   try {
     const card = normalizeCard(draft());
-    button.disabled = true;
+    setPending(true);
     button.textContent = 'publishing…';
     published = await api(editing ? '/api/cards/' + editing : '/api/cards', {
       method: editing ? 'PUT' : 'POST',
@@ -272,7 +295,7 @@ $('#card-form').addEventListener('submit', async event => {
     $('#form-status').textContent = error.message;
   } finally {
     button.replaceChildren(document.createTextNode(editing ? 'publish changes ' : 'publish card '), element('span', '↗'));
-    button.disabled = payloadBytes(draft()) > MAX_BYTES;
+    setPending(false);
   }
 });
 
