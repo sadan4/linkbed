@@ -1,0 +1,19 @@
+{
+  "name": "lembed",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "discord cards with real link buttons, self-hosted",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "node --watch server.mjs",
+    "start": "node server.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "cheerio": "^1.1.2",
+    "ipaddr.js": "^2.2.0"
+  }
+}
