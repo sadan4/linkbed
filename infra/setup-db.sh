@@ -26,7 +26,12 @@ dpkg -i cloudflared.deb >/dev/null
 id sqld >/dev/null 2>&1 || useradd --system --home /var/lib/sqld --shell /usr/sbin/nologin sqld
 id cloudflared >/dev/null 2>&1 || useradd --system --home /var/lib/cloudflared --shell /usr/sbin/nologin cloudflared
 install -d -o sqld -g sqld -m 750 /etc/sqld /var/lib/sqld
-install -d -o cloudflared -g cloudflared -m 750 /etc/cloudflared /var/lib/cloudflared
+install -d -o root -g cloudflared -m 750 /etc/cloudflared
+install -d -o cloudflared -g cloudflared -m 750 /var/lib/cloudflared
+if test -s /etc/cloudflared/tunnel-token; then
+    chown root:cloudflared /etc/cloudflared/tunnel-token
+    chmod 640 /etc/cloudflared/tunnel-token
+fi
 python3 - <<'PY'
 import base64, json, os
 from pathlib import Path
@@ -91,7 +96,7 @@ Wants=network-online.target
 Type=simple
 User=cloudflared
 Group=cloudflared
-ExecStart=/usr/bin/cloudflared --no-autoupdate tunnel --metrics 127.0.0.1:2000 run --token-file /etc/cloudflared/tunnel-token
+ExecStart=/usr/local/bin/cloudflared --no-autoupdate tunnel --metrics 127.0.0.1:2000 run --token-file /etc/cloudflared/tunnel-token
 Restart=on-failure
 RestartSec=5
 UMask=0077
