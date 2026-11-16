@@ -15,7 +15,7 @@ open http://localhost:3000. local sqlite data stays in `data/`, outside git.
 
 ## deploy
 
-import this repo into vercel, like [pangram badge](https://github.com/schmayterling/pangram-badge). set a turso libsql database url and auth token, then add `lembed.ryana.dev`. no framework or build setup. see [deployment instructions](docs/deployment.md).
+import this repo into vercel, like [pangram badge](https://github.com/schmayterling/pangram-badge). set the chrysalis libsql database url and auth token, then add `lembed.ryana.dev`. no framework or build setup. see [deployment instructions](docs/deployment.md).
 
 ## features
 

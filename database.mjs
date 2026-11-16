@@ -2,12 +2,12 @@ import { createClient } from '@libsql/client/web';
 import { mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
-export async function openDatabase({ dbPath = join(process.cwd(), 'data/cards.sqlite'), databaseUrl = process.env.TURSO_DATABASE_URL, authToken = process.env.TURSO_AUTH_TOKEN } = {}) {
+export async function openDatabase({ dbPath = join(process.cwd(), 'data/cards.sqlite'), databaseUrl = process.env.DATABASE_URL, authToken = process.env.DATABASE_AUTH_TOKEN } = {}) {
   let db;
   if (databaseUrl) {
     db = createClient({ url: databaseUrl, authToken });
   } else {
-    if (process.env.VERCEL) throw new Error('set TURSO_DATABASE_URL and TURSO_AUTH_TOKEN in vercel.');
+    if (process.env.VERCEL) throw new Error('set DATABASE_URL and DATABASE_AUTH_TOKEN in vercel.');
     const { DatabaseSync } = await import('node:sqlite');
     if (dbPath !== ':memory:') mkdirSync(dirname(dbPath), { recursive: true });
     const sqlite = new DatabaseSync(dbPath);
