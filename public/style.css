@@ -29,7 +29,6 @@ p { text-wrap: pretty; }
 .page-width { max-width: 1180px; margin-inline: auto; }
 .site-header { height: 88px; padding: 0 max(32px, calc((100vw - 1180px) / 2)); display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); gap: 20px; }
 .brand { display: inline-flex; align-items: center; gap: 11px; font-weight: 740; font-size: 21px; letter-spacing: -0.7px; }
-.brand-mark { background: var(--primary); color: var(--bg); display: grid; place-items: center; height: 31px; width: 31px; border-radius: 9px; font-size: 26px; line-height: 1; padding-bottom: 5px; font-weight: 650; letter-spacing: -2px; padding-right: 3px; }
 .site-header nav { display: flex; align-items: center; gap: 30px; }
 .quiet-link { color: var(--muted); font-size: 13px; }
 .quiet-link:hover, .text-link:hover, .text-button:hover { color: var(--primary); }
@@ -113,7 +112,6 @@ summary::-webkit-details-marker { display: none; }
 .channel-bar > span:first-child { color: oklch(0.70 0.01 270); font-size: 24px; font-weight: 400; margin-right: 3px; }
 .channel-caption { font-size: 10px; color: oklch(0.72 0.008 270); font-weight: 400; border-left: 1px solid oklch(0.45 0.01 270); padding-left: 10px; margin-left: 2px; }
 .discord-message { display: flex; padding: 29px 18px 25px; gap: 12px; min-height: 240px; }
-.avatar { width: 34px; height: 34px; flex-shrink: 0; display: grid; place-items: center; background: oklch(0.6 0.19 280); border-radius: 50%; color: white; font-size: 24px; font-weight: 600; padding: 0 2px 4px 0; letter-spacing: -2px; }
 .message-content { min-width: 0; width: 100%; }
 .message-author { font-size: 12px; font-weight: 600; margin-bottom: 4px; }
 .message-author span { font-size: 9px; font-weight: 400; color: oklch(0.70 0.008 270); margin-left: 6px; }
@@ -197,7 +195,6 @@ summary::-webkit-details-marker { display: none; }
   .publish-section, .preview-wrap { padding-inline: 20px; }
   .channel-caption { display: none; }
   .discord-message { padding-inline: 12px; gap: 8px; }
-  .avatar { display: none; }
   .button-row { grid-template-columns: 90px minmax(0,1fr) 18px; }
   .templates button { padding: 3px 5px; font-size: 9px; }
   .section-title { gap: 8px; }
@@ -218,7 +215,6 @@ summary::-webkit-details-marker { display: none; }
   .editor-top { padding-top: 22px; }
   .templates button { font-size: 10px; padding: 4px 8px; }
   .button-row { grid-template-columns: 100px minmax(0,1fr) 20px; }
-  .avatar { display: grid; }
   .discord-message { padding: 24px 16px; }
   .how-section { grid-template-columns: 1fr; gap: 24px; padding-block: 42px; }
   .how-section h2 { font-size: 25px; }
