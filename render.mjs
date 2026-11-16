@@ -24,7 +24,7 @@ ${card.images.map(image => `<meta property="og:image" content="${e(image)}">`).j
 <link rel="stylesheet" href="/style.css">
 ${embedScript(card)}
 </head><body class="public-page">
-<header class="public-header"><a class="brand" href="/"><span class="brand-mark" aria-hidden="true">p.</span>lembed</a><a class="text-link" href="/">make your own card ↗</a></header>
+<header class="public-header"><a class="brand" href="/"><span class="brand-mark" aria-hidden="true">l.</span>lembed</a><a class="text-link" href="/">make your own card ↗</a></header>
 <main class="public-content"><article class="published-card">
 <p class="eyebrow">shared with lembed</p><h1>${e(card.title)}</h1>
 <p class="published-description">${e(card.description)}</p>
