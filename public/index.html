@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>lembed — links with something to say</title>
+  <meta name="description" content="turn a link into a discord card with real buttons. import, customize, and share.">
+  <meta name="theme-color" content="#494acb">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css">
+  <script type="module" src="/app.mjs"></script>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/"><span class="brand-mark" aria-hidden="true">l.</span>lembed</a>
+    <nav aria-label="main navigation">
+      <a href="#how-it-works" class="quiet-link">how it works</a>
+      <button type="button" class="button secondary small" id="show-cards">your cards <span id="card-count">0</span></button>
+    </nav>
+  </header>
+
+  <main>
+    <section id="saved-cards" class="saved-cards page-width" hidden aria-labelledby="saved-heading">
+      <div class="section-title"><h2 id="saved-heading">your cards</h2><button type="button" class="text-button" id="close-cards">close ×</button></div>
+      <p class="hint">saved in this browser. clearing cookies removes your edit access.</p>
+      <div id="saved-list"></div>
+    </section>
+    <div class="intro page-width">
+      <div><p class="eyebrow">the discord card studio</p><h1>a link, with more to it.</h1><p class="lede">turn your next launch, project, or introduction into a card worth clicking.</p></div>
+      <p class="intro-note"><span class="status-dot"></span>real buttons. one shareable link.</p>
+    </div>
+    <div class="workspace page-width">
+      <section class="editor" aria-labelledby="editor-heading">
+        <div class="editor-top"><h2 id="editor-heading">make it yours</h2><button class="text-button" type="button" id="reset">new card ↗</button></div>
+        <form id="card-form">
+          <div class="form-section first-section">
+            <label for="source-url">start with a link</label>
+            <div class="input-action"><input id="source-url" type="url" placeholder="https://your-next-thing.com" required maxlength="512" autocomplete="url"><button id="import-button" class="button secondary" type="button">import <span aria-hidden="true">↓</span></button></div>
+            <p class="hint">we’ll bring in its title, description, and image.</p>
+          </div>
+          <div class="form-section">
+            <div class="section-title"><h3>the story</h3><div class="templates" aria-label="starting points"><button type="button" data-template="launch">launch</button><button type="button" data-template="portfolio">portfolio</button><button type="button" data-template="event">event</button></div></div>
+            <label for="title">title <span class="field-meta" id="title-count">0 / 100</span></label>
+            <input id="title" maxlength="100" required placeholder="something worth sharing">
+            <label for="description">description <span class="optional">optional</span></label>
+            <textarea id="description" rows="3" maxlength="1200" placeholder="a little context goes a long way."></textarea>
+            <div class="color-field"><label for="color">accent color</label><div class="swatches" aria-label="preset accent colors">
+              <button type="button" class="swatch indigo" data-color="#5865f2" aria-label="indigo"></button>
+              <button type="button" class="swatch mint" data-color="#34b398" aria-label="mint"></button>
+              <button type="button" class="swatch rose" data-color="#da607f" aria-label="rose"></button>
+              <button type="button" class="swatch amber" data-color="#ca8a24" aria-label="amber"></button>
+              <input id="color" type="color" value="#5865f2" aria-label="custom accent color">
+            </div></div>
+          </div>
+          <div class="form-section">
+            <div class="section-title"><h3>give them somewhere to go</h3><span class="field-meta" id="button-count">1 / 5</span></div>
+            <div id="button-list"></div>
+            <button class="text-button add-button" id="add-button" type="button">+ add a button</button>
+          </div>
+          <details class="form-section media-section">
+            <summary><span>add images</span><span class="field-meta" id="image-count">0 / 10</span></summary>
+            <label for="images">image urls <span class="optional">one per line</span></label>
+            <textarea id="images" rows="3" placeholder="https://example.com/image.jpg"></textarea>
+            <p class="hint">public https images. keep files small so discord can load them quickly.</p>
+          </details>
+          <div class="publish-section">
+            <label for="slug">your shareable link</label>
+            <div class="slug-field"><span id="slug-prefix">/p/</span><input id="slug" required maxlength="60" pattern="[a-z0-9]+(-[a-z0-9]+)*" placeholder="your-next-thing" spellcheck="false" autocapitalize="off" aria-describedby="slug-hint"></div>
+            <p id="slug-hint" class="hint">lowercase letters, numbers, and hyphens.</p>
+            <p class="form-status" id="form-status" role="status" aria-live="polite"></p>
+            <button id="publish-button" class="button primary publish-button" type="submit">publish card <span aria-hidden="true">↗</span></button>
+            <p class="privacy-note">no sign-up. this browser keeps your edit access.</p>
+          </div>
+        </form>
+      </section>
+
+      <aside class="preview-panel" aria-labelledby="preview-heading">
+        <div class="preview-header"><h2 id="preview-heading">a little preview</h2><span class="live-indicator"><span class="status-dot"></span>live</span></div>
+        <div class="preview-wrap">
+          <div class="discord-window">
+            <div class="channel-bar"><span aria-hidden="true">#</span> showcase <span class="channel-caption">good things go here</span></div>
+            <div class="discord-message">
+              <div class="avatar" aria-hidden="true">l.</div>
+              <div class="message-content">
+                <div class="message-author">you <span>today at 12:00</span></div>
+                <p class="message-link" id="preview-url">lembed.ryana.dev/p/your-next-thing</p>
+                <article class="discord-card" id="preview-card">
+                  <h3 id="preview-title">something worth sharing</h3>
+                  <div id="preview-description">your story goes here. a launch, a project, an open invitation — make it yours.</div>
+                  <div class="preview-gallery" id="preview-gallery" hidden></div>
+                  <div class="preview-buttons" id="preview-buttons"></div>
+                </article>
+              </div>
+            </div>
+            <div class="discord-composer"><span aria-hidden="true">⊕</span> message #showcase <span aria-hidden="true">☺</span></div>
+          </div>
+          <div class="preview-footer"><span>discord preview</span><span id="byte-count">0 / 3,000 bytes</span></div>
+          <p id="preview-warning" class="preview-warning" role="status"></p>
+          <div id="publish-result" class="publish-result" hidden>
+            <div class="result-heading"><span class="success-mark" aria-hidden="true">✓</span><h3>ready for its entrance.</h3></div>
+            <p>paste this link into a discord channel or dm.</p>
+            <div class="result-link"><input id="published-url" readonly aria-label="published card url"><button class="button secondary" id="copy-link" type="button">copy link</button></div>
+            <div class="result-actions"><a id="open-card" href="#" target="_blank" rel="noopener noreferrer">open card ↗</a><button type="button" id="copy-fresh" class="text-button">copy fresh preview link</button></div>
+            <p class="hint">discord caches previews. use the fresh link after edits.</p>
+            <p class="hint" id="local-note" hidden>this local link only works on your computer. deploy it before sharing in discord.</p>
+          </div>
+          <details class="export-panel">
+            <summary>hosting your own page? <span>copy the embed code ↗</span></summary>
+            <p class="hint">paste inside the initial html &lt;head&gt; your server sends. browser-only scripts won’t work.</p>
+            <textarea id="embed-code" readonly rows="5" spellcheck="false" aria-label="discord embed script"></textarea>
+            <button type="button" class="button secondary small" id="copy-code">copy embed code</button>
+          </details>
+          <div class="preview-explainer">
+            <span class="mini-mark" aria-hidden="true">↗</span><p>your links stay links.<br><span>no bot to invite. no extra click to find the button.</span></p>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <section class="how-section page-width" id="how-it-works" aria-labelledby="how-heading">
+      <div><p class="eyebrow">behind the card</p><h2 id="how-heading">small link.<br>better first impression.</h2></div>
+      <div class="how-copy"><p>publish a card, then paste its link into discord. discord reads the card from our server and puts your text, images, and buttons right in the conversation.</p><p class="hint">preview is an approximation. final rendering depends on discord and whether it can fetch your images. standard link metadata is included as a fallback.</p><a href="https://docs.discord.com/developers/link-previews/component-embeds" target="_blank" rel="noopener noreferrer" class="text-link">read discord’s component embed docs ↗</a></div>
+    </section>
+  </main>
+  <footer class="site-footer page-width"><span>lembed</span><span>give good things a good entrance.</span></footer>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>
