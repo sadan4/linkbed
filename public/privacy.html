@@ -1,50 +1,145 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>privacy policy | linkbed</title>
-  <meta name="description" content="i do need to eat some of ur data because of abuse, sorry">
-  <link rel="icon" href="https://github.com/schmayterling.png?size=64" type="image/png">
-  <link rel="stylesheet" href="/style.css">
-  <script type="module" src="/legal.mjs"></script>
-</head>
-<body data-view="legal">
-  <header class="site-header">
-    <a class="brand" href="/"><span aria-hidden="true">🦋</span> linkbed.me</a>
-    <nav aria-label="page navigation"><a class="nav-link" href="/">back to editor</a><button type="button" class="theme-toggle" id="theme-toggle" aria-label="switch theme"><span data-icon="moon"></span></button></nav>
-  </header>
-  <main class="legal-content" id="main-content">
-    <h1>privacy policy</h1>
-    <p class="legal-date">last updated <time datetime="2026-11-17">17 november 2026</time></p>
-    <p class="legal-intro">i do need to eat some of ur data because of abuse, sorry&nbsp;<img class="legal-emoji" src="/privacy-emoji.png" width="128" height="128" alt=""></p>
-    <section aria-labelledby="privacy-who"><h2 id="privacy-who">who's responsible</h2>
-      <p>i'm ryana may que (schmayterling), and i run linkbed.me and linkbed.ryana.dev from the philippines. this policy covers those sites, while anyone hosting their own copy is responsible for theirs.</p>
-    </section>
-    <section aria-labelledby="privacy-stored"><h2 id="privacy-stored">what i keep and why</h2>
-      <p>i save your cards, who can edit them, and records that check your access token without storing the token itself. i also keep abuse reports and moderation decisions so i can deal with problems.</p>
-      <p>to prevent abuse, i use browser and network details, including your ip address, to recognise related activity and apply limits or bans automatically. if a restriction seems wrong, email me so i can review it.</p>
-      <p>i use this data to run the features you ask for, protect the service, and meet legal obligations, but i don't sell your personal data, use your cards for targeted ads, or add ad trackers.</p>
-    </section>
-    <section aria-labelledby="privacy-browser"><h2 id="privacy-browser">cookies and saved settings</h2>
-      <p>cookies keep you signed in and preserve guest edit access, and your browser also saves settings like your theme and recent emoji. it keeps unfinished edits and your current page in this tab so you can refresh without losing your place. signed-in sessions last up to 30 days, while guest access cookies last up to a year. you can clear or block this storage, but doing so may remove guest edit access or stop some features from working.</p>
-    </section>
-    <section aria-labelledby="privacy-sharing"><h2 id="privacy-sharing">who else sees it</h2>
-      <p>anyone with the link can view a published card, and discord or search engines may keep copies. if you load linked images or videos, or visit another site, those services also receive normal connection details.</p>
-      <p><a href="https://vercel.com/legal/privacy-policy" rel="noopener noreferrer" target="_blank">vercel</a> and <a href="https://www.cloudflare.com/privacypolicy/" rel="noopener noreferrer" target="_blank">cloudflare</a> help run the service, which means they may handle data outside your country. i can also access records to maintain the site and review reports, and may share information when legally required or needed to protect people. if you donate, github handles payment without sharing your card details with me, and if you email me, my email provider handles that message.</p>
-    </section>
-    <section aria-labelledby="privacy-retention"><h2 id="privacy-retention">how long it stays</h2>
-      <p>cards stay until you or i delete them, while some access and moderation records have no fixed deletion date and are kept while needed for edit access, reports, or abuse prevention. even after deletion, data may remain in backups for about a week, and copies held by other services follow their own rules.</p>
-    </section>
-    <section aria-labelledby="privacy-rights"><h2 id="privacy-rights">your choices</h2>
-      <p>you can edit or delete your cards, and you can email <a href="mailto:hey@ryanaque.com">hey@ryanaque.com</a> with the relevant link to ask about your personal data. that includes requests to see, correct, export, or delete it, limit or object to its use, or withdraw consent where it applies. i may need to check it's you before acting on a request, but please don't send your access token.</p>
-      <p>if some records need to stay for legal reasons or abuse prevention, i'll explain why. you can also complain to your local privacy authority, including the <a href="https://privacy.gov.ph/" rel="noopener noreferrer" target="_blank">philippine national privacy commission</a>.</p>
-      <p>linkbed isn't intended for children under 13 or any higher minimum age where they live, so please tell me if a child has shared personal information here and i'll look into it.</p>
-    </section>
-    <section aria-labelledby="privacy-changes"><h2 id="privacy-changes">if this changes</h2>
-      <p>if this policy changes, i'll update the date here and post a notice for major changes. i'll also ask first if a new use needs your consent. for the rules on using linkbed, see the <a href="/terms">terms of service</a>.</p>
-    </section>
-    <footer class="site-footer"><p><a href="/terms">terms of service</a> · <a href="/privacy" aria-current="page">privacy policy</a></p><p>made by <a href="https://ryanaque.com/">may</a>. this site is free to use.</p></footer>
-  </main>
-</body>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>privacy policy | linkbed</title>
+    <meta name="description" content="i do need to eat some of ur data because of abuse, sorry" />
+    <link rel="icon" href="https://github.com/schmayterling.png?size=64" type="image/png" />
+    <link rel="stylesheet" href="/style.css" />
+    <script type="module" src="/legal.mjs"></script>
+  </head>
+  <body data-view="legal">
+    <header class="site-header">
+      <a class="brand" href="/"><span aria-hidden="true">🦋</span> linkbed.me</a>
+      <nav aria-label="page navigation">
+        <a class="nav-link" href="/">back to editor</a
+        ><button type="button" class="theme-toggle" id="theme-toggle" aria-label="switch theme">
+          <span data-icon="moon"></span>
+        </button>
+      </nav>
+    </header>
+    <main class="legal-content" id="main-content">
+      <h1>privacy policy</h1>
+      <p class="legal-date">last updated <time datetime="2026-11-17">17 november 2026</time></p>
+      <p class="legal-intro">
+        i do need to eat some of ur data because of abuse, sorry&nbsp;<img
+          class="legal-emoji"
+          src="/privacy-emoji.png"
+          width="128"
+          height="128"
+          alt=""
+        />
+      </p>
+      <section aria-labelledby="privacy-who">
+        <h2 id="privacy-who">who's responsible</h2>
+        <p>
+          i'm ryana may que (schmayterling), and i run linkbed.me and linkbed.ryana.dev from the
+          philippines. this policy covers those sites, while anyone hosting their own copy is
+          responsible for theirs.
+        </p>
+      </section>
+      <section aria-labelledby="privacy-stored">
+        <h2 id="privacy-stored">what i keep and why</h2>
+        <p>
+          i save your cards, who can edit them, and records that check your access token without
+          storing the token itself. i also keep abuse reports and moderation decisions so i can deal
+          with problems.
+        </p>
+        <p>
+          to prevent abuse, i use browser and network details, including your ip address, to
+          recognise related activity and apply limits or bans automatically. if a restriction seems
+          wrong, email me so i can review it.
+        </p>
+        <p>
+          i use this data to run the features you ask for, protect the service, and meet legal
+          obligations, but i don't sell your personal data, use your cards for targeted ads, or add
+          ad trackers.
+        </p>
+      </section>
+      <section aria-labelledby="privacy-browser">
+        <h2 id="privacy-browser">cookies and saved settings</h2>
+        <p>
+          cookies keep you signed in and preserve guest edit access, and your browser also saves
+          settings like your theme and recent emoji. it keeps unfinished edits and your current page
+          in this tab so you can refresh without losing your place. signed-in sessions last up to 30
+          days, while guest access cookies last up to a year. you can clear or block this storage,
+          but doing so may remove guest edit access or stop some features from working.
+        </p>
+      </section>
+      <section aria-labelledby="privacy-sharing">
+        <h2 id="privacy-sharing">who else sees it</h2>
+        <p>
+          anyone with the link can view a published card, and discord or search engines may keep
+          copies. if you load linked images or videos, or visit another site, those services also
+          receive normal connection details.
+        </p>
+        <p>
+          <a
+            href="https://vercel.com/legal/privacy-policy"
+            rel="noopener noreferrer"
+            target="_blank"
+            >vercel</a
+          >
+          and
+          <a
+            href="https://www.cloudflare.com/privacypolicy/"
+            rel="noopener noreferrer"
+            target="_blank"
+            >cloudflare</a
+          >
+          help run the service, which means they may handle data outside your country. i can also
+          access records to maintain the site and review reports, and may share information when
+          legally required or needed to protect people. if you donate, github handles payment
+          without sharing your card details with me, and if you email me, my email provider handles
+          that message.
+        </p>
+      </section>
+      <section aria-labelledby="privacy-retention">
+        <h2 id="privacy-retention">how long it stays</h2>
+        <p>
+          cards stay until you or i delete them, while some access and moderation records have no
+          fixed deletion date and are kept while needed for edit access, reports, or abuse
+          prevention. even after deletion, data may remain in backups for about a week, and copies
+          held by other services follow their own rules.
+        </p>
+      </section>
+      <section aria-labelledby="privacy-rights">
+        <h2 id="privacy-rights">your choices</h2>
+        <p>
+          you can edit or delete your cards, and you can email
+          <a href="mailto:hey@ryanaque.com">hey@ryanaque.com</a> with the relevant link to ask about
+          your personal data. that includes requests to see, correct, export, or delete it, limit or
+          object to its use, or withdraw consent where it applies. i may need to check it's you
+          before acting on a request, but please don't send your access token.
+        </p>
+        <p>
+          if some records need to stay for legal reasons or abuse prevention, i'll explain why. you
+          can also complain to your local privacy authority, including the
+          <a href="https://privacy.gov.ph/" rel="noopener noreferrer" target="_blank"
+            >philippine national privacy commission</a
+          >.
+        </p>
+        <p>
+          linkbed isn't intended for children under 13 or any higher minimum age where they live, so
+          please tell me if a child has shared personal information here and i'll look into it.
+        </p>
+      </section>
+      <section aria-labelledby="privacy-changes">
+        <h2 id="privacy-changes">if this changes</h2>
+        <p>
+          if this policy changes, i'll update the date here and post a notice for major changes.
+          i'll also ask first if a new use needs your consent. for the rules on using linkbed, see
+          the <a href="/terms">terms of service</a>.
+        </p>
+      </section>
+      <footer class="site-footer">
+        <p>
+          <a href="/terms">terms of service</a> ·
+          <a href="/privacy" aria-current="page">privacy policy</a>
+        </p>
+        <p>made by <a href="https://ryanaque.com/">may</a>. this site is free to use.</p>
+      </footer>
+    </main>
+  </body>
 </html>

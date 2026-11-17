@@ -1,69 +1,302 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="robots" content="noindex, nofollow">
-  <title>linkbed | moderation</title>
-  <link rel="icon" href="https://github.com/schmayterling.png?size=64" type="image/png">
-  <link rel="stylesheet" href="/style.css">
-  <script type="module" src="/admin.mjs"></script>
-</head>
-<body data-view="admin">
-  <header class="site-header">
-    <a class="brand" href="/"><span aria-hidden="true">🦋</span> linkbed.me</a>
-    <nav aria-label="admin navigation">
-      <a class="nav-link" href="/">back to editor</a>
-      <button type="button" class="theme-toggle" id="theme-toggle" aria-label="switch to dark mode"><span data-icon="moon"></span></button>
-    </nav>
-  </header>
-  <main>
-    <div class="admin-heading">
-      <div><p class="admin-eyebrow">administration</p><h1>moderation</h1></div>
-      <div class="admin-heading-actions"><span class="admin-local">local access</span><button type="button" class="button secondary small" id="refresh-admin">refresh</button></div>
-    </div>
-    <p id="admin-status" class="form-status" role="status"></p>
-    <div class="admin-workspace">
-      <div class="admin-tabs" role="tablist" aria-label="moderation">
-        <button type="button" role="tab" id="reports-tab" aria-controls="reports-panel" aria-selected="true" tabindex="0">pending abuse reports</button>
-        <button type="button" role="tab" id="links-tab" aria-controls="links-panel" aria-selected="false" tabindex="-1">links</button>
-        <button type="button" role="tab" id="fingerprints-tab" aria-controls="fingerprints-panel" aria-selected="false" tabindex="-1">fingerprints</button>
-        <button type="button" role="tab" id="slugs-tab" aria-controls="slugs-panel" aria-selected="false" tabindex="-1">banned slugs</button>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>linkbed | moderation</title>
+    <link rel="icon" href="https://github.com/schmayterling.png?size=64" type="image/png" />
+    <link rel="stylesheet" href="/style.css" />
+    <script type="module" src="/admin.mjs"></script>
+  </head>
+  <body data-view="admin">
+    <header class="site-header">
+      <a class="brand" href="/"><span aria-hidden="true">🦋</span> linkbed.me</a>
+      <nav aria-label="admin navigation">
+        <a class="nav-link" href="/">back to editor</a>
+        <button
+          type="button"
+          class="theme-toggle"
+          id="theme-toggle"
+          aria-label="switch to dark mode"
+        >
+          <span data-icon="moon"></span>
+        </button>
+      </nav>
+    </header>
+    <main>
+      <div class="admin-heading">
+        <div>
+          <p class="admin-eyebrow">administration</p>
+          <h1>moderation</h1>
+        </div>
+        <div class="admin-heading-actions">
+          <span class="admin-local">local access</span
+          ><button type="button" class="button secondary small" id="refresh-admin">refresh</button>
+        </div>
       </div>
-      <section id="reports-panel" class="admin-panel" role="tabpanel" aria-labelledby="reports-tab">
-        <div class="admin-panel-heading"><div><h2>pending abuse reports</h2><p>review reported links and take action.</p></div><span class="admin-count" id="reports-count"></span></div>
-        <div class="admin-table-wrap"><table class="admin-table"><caption class="sr-only">pending abuse reports</caption><thead><tr><th scope="col">reported link</th><th scope="col">reporter</th><th scope="col">reported</th><th scope="col" class="admin-action-heading">actions</th></tr></thead><tbody id="report-list"></tbody></table></div>
-        <div class="admin-pagination"><span id="reports-page" class="muted"></span><button type="button" class="button secondary small" id="reports-previous">previous</button><button type="button" class="button secondary small" id="reports-next">next</button></div>
-      </section>
-      <section id="links-panel" class="admin-panel" role="tabpanel" aria-labelledby="links-tab" hidden>
-        <div class="admin-panel-heading"><div><h2>links</h2><p>manage published cards and their creators.</p></div><span class="admin-count" id="links-count"></span></div>
-        <form id="admin-search" role="search" class="admin-filter">
-          <label for="admin-query" class="sr-only">search links</label><input id="admin-query" type="search" maxlength="200" placeholder="search title, slug, or destination"><button type="submit" class="button secondary small">search</button>
-        </form>
-        <div class="admin-table-wrap"><table class="admin-table"><caption class="sr-only">published links</caption><thead><tr><th scope="col">card / destination</th><th scope="col">creator</th><th scope="col">status</th><th scope="col">updated</th><th scope="col" class="admin-action-heading">actions</th></tr></thead><tbody id="link-list"></tbody></table></div>
-        <div class="admin-pagination"><span id="links-page" class="muted"></span><button type="button" class="button secondary small" id="links-previous">previous</button><button type="button" class="button secondary small" id="links-next">next</button></div>
-      </section>
-      <section id="fingerprints-panel" class="admin-panel" role="tabpanel" aria-labelledby="fingerprints-tab" hidden>
-        <div class="admin-panel-heading"><div><h2>fingerprints</h2><p>hashed browser identities and linked access tokens.</p></div><span class="admin-count" id="fingerprints-count"></span></div>
-        <div class="admin-table-wrap"><table class="admin-table"><caption class="sr-only">creator and reporter fingerprints</caption><thead><tr><th scope="col">fingerprint</th><th scope="col">status</th><th scope="col">linked identities</th><th scope="col">first seen</th><th scope="col" class="admin-action-heading">actions</th></tr></thead><tbody id="fingerprint-list"></tbody></table></div>
-        <div class="admin-pagination"><span id="fingerprints-page" class="muted"></span><button type="button" class="button secondary small" id="fingerprints-previous">previous</button><button type="button" class="button secondary small" id="fingerprints-next">next</button></div>
-        <div class="admin-panel-heading admin-subheading"><div><h2>access tokens</h2><p>only a shortened hash is shown. revoked tokens stay revoked.</p></div><span class="admin-count" id="tokens-count"></span></div>
-        <div class="admin-table-wrap"><table class="admin-table"><caption class="sr-only">hashed access tokens</caption><thead><tr><th scope="col">token fingerprint</th><th scope="col">status</th><th scope="col">cards</th><th scope="col">created</th><th scope="col" class="admin-action-heading">actions</th></tr></thead><tbody id="token-list"></tbody></table></div>
-        <div class="admin-pagination"><span id="tokens-page" class="muted"></span><button type="button" class="button secondary small" id="tokens-previous">previous</button><button type="button" class="button secondary small" id="tokens-next">next</button></div>
-      </section>
-      <section id="slugs-panel" class="admin-panel" role="tabpanel" aria-labelledby="slugs-tab" hidden>
-        <div class="admin-panel-heading"><div><h2>banned slugs</h2><p>reserved addresses that cannot be published or opened.</p></div><span class="admin-count" id="slugs-count"></span></div>
-        <form id="ban-slug-form" class="admin-filter"><label class="sr-only" for="ban-slug-value">slug to ban</label><input id="ban-slug-value" maxlength="60" placeholder="slug-to-ban" pattern="[a-z0-9]+(-[a-z0-9]+)*" required autocapitalize="off" spellcheck="false"><button type="submit" class="button danger secondary small">ban slug</button></form>
-        <div class="admin-table-wrap"><table class="admin-table"><caption class="sr-only">banned slugs</caption><thead><tr><th scope="col">slug</th><th scope="col">banned</th><th scope="col" class="admin-action-heading">actions</th></tr></thead><tbody id="slug-list"></tbody></table></div>
-        <div class="admin-pagination"><span id="slugs-page" class="muted"></span><button type="button" class="button secondary small" id="slugs-previous">previous</button><button type="button" class="button secondary small" id="slugs-next">next</button></div>
-      </section>
-    </div>
-  </main>
-  <dialog id="admin-confirm" class="tool-dialog confirm-dialog" aria-labelledby="confirm-heading" aria-describedby="confirm-note">
-    <div class="card-titlebar"><h2 id="confirm-heading">confirm action</h2></div>
-    <p id="confirm-note"></p>
-    <form method="dialog" class="dialog-actions"><button type="submit" class="button secondary small" value="cancel" autofocus>cancel</button><button type="submit" class="button danger small" id="confirm-action" value="confirm">continue</button></form>
-  </dialog>
-  <div id="admin-menu" class="toolbar-menu admin-menu" popover aria-label="row actions"></div>
-</body>
+      <p id="admin-status" class="form-status" role="status"></p>
+      <div class="admin-workspace">
+        <div class="admin-tabs" role="tablist" aria-label="moderation">
+          <button
+            type="button"
+            role="tab"
+            id="reports-tab"
+            aria-controls="reports-panel"
+            aria-selected="true"
+            tabindex="0"
+          >
+            pending abuse reports
+          </button>
+          <button
+            type="button"
+            role="tab"
+            id="links-tab"
+            aria-controls="links-panel"
+            aria-selected="false"
+            tabindex="-1"
+          >
+            links
+          </button>
+          <button
+            type="button"
+            role="tab"
+            id="fingerprints-tab"
+            aria-controls="fingerprints-panel"
+            aria-selected="false"
+            tabindex="-1"
+          >
+            fingerprints
+          </button>
+          <button
+            type="button"
+            role="tab"
+            id="slugs-tab"
+            aria-controls="slugs-panel"
+            aria-selected="false"
+            tabindex="-1"
+          >
+            banned slugs
+          </button>
+        </div>
+        <section
+          id="reports-panel"
+          class="admin-panel"
+          role="tabpanel"
+          aria-labelledby="reports-tab"
+        >
+          <div class="admin-panel-heading">
+            <div>
+              <h2>pending abuse reports</h2>
+              <p>review reported links and take action.</p>
+            </div>
+            <span class="admin-count" id="reports-count"></span>
+          </div>
+          <div class="admin-table-wrap">
+            <table class="admin-table">
+              <caption class="sr-only">
+                pending abuse reports
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">reported link</th>
+                  <th scope="col">reporter</th>
+                  <th scope="col">reported</th>
+                  <th scope="col" class="admin-action-heading">actions</th>
+                </tr>
+              </thead>
+              <tbody id="report-list"></tbody>
+            </table>
+          </div>
+          <div class="admin-pagination">
+            <span id="reports-page" class="muted"></span
+            ><button type="button" class="button secondary small" id="reports-previous">
+              previous</button
+            ><button type="button" class="button secondary small" id="reports-next">next</button>
+          </div>
+        </section>
+        <section
+          id="links-panel"
+          class="admin-panel"
+          role="tabpanel"
+          aria-labelledby="links-tab"
+          hidden
+        >
+          <div class="admin-panel-heading">
+            <div>
+              <h2>links</h2>
+              <p>manage published cards and their creators.</p>
+            </div>
+            <span class="admin-count" id="links-count"></span>
+          </div>
+          <form id="admin-search" role="search" class="admin-filter">
+            <label for="admin-query" class="sr-only">search links</label
+            ><input
+              id="admin-query"
+              type="search"
+              maxlength="200"
+              placeholder="search title, slug, or destination"
+            /><button type="submit" class="button secondary small">search</button>
+          </form>
+          <div class="admin-table-wrap">
+            <table class="admin-table">
+              <caption class="sr-only">
+                published links
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">card / destination</th>
+                  <th scope="col">creator</th>
+                  <th scope="col">status</th>
+                  <th scope="col">updated</th>
+                  <th scope="col" class="admin-action-heading">actions</th>
+                </tr>
+              </thead>
+              <tbody id="link-list"></tbody>
+            </table>
+          </div>
+          <div class="admin-pagination">
+            <span id="links-page" class="muted"></span
+            ><button type="button" class="button secondary small" id="links-previous">
+              previous</button
+            ><button type="button" class="button secondary small" id="links-next">next</button>
+          </div>
+        </section>
+        <section
+          id="fingerprints-panel"
+          class="admin-panel"
+          role="tabpanel"
+          aria-labelledby="fingerprints-tab"
+          hidden
+        >
+          <div class="admin-panel-heading">
+            <div>
+              <h2>fingerprints</h2>
+              <p>hashed browser identities and linked access tokens.</p>
+            </div>
+            <span class="admin-count" id="fingerprints-count"></span>
+          </div>
+          <div class="admin-table-wrap">
+            <table class="admin-table">
+              <caption class="sr-only">
+                creator and reporter fingerprints
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">fingerprint</th>
+                  <th scope="col">status</th>
+                  <th scope="col">linked identities</th>
+                  <th scope="col">first seen</th>
+                  <th scope="col" class="admin-action-heading">actions</th>
+                </tr>
+              </thead>
+              <tbody id="fingerprint-list"></tbody>
+            </table>
+          </div>
+          <div class="admin-pagination">
+            <span id="fingerprints-page" class="muted"></span
+            ><button type="button" class="button secondary small" id="fingerprints-previous">
+              previous</button
+            ><button type="button" class="button secondary small" id="fingerprints-next">
+              next
+            </button>
+          </div>
+          <div class="admin-panel-heading admin-subheading">
+            <div>
+              <h2>access tokens</h2>
+              <p>only a shortened hash is shown. revoked tokens stay revoked.</p>
+            </div>
+            <span class="admin-count" id="tokens-count"></span>
+          </div>
+          <div class="admin-table-wrap">
+            <table class="admin-table">
+              <caption class="sr-only">
+                hashed access tokens
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">token fingerprint</th>
+                  <th scope="col">status</th>
+                  <th scope="col">cards</th>
+                  <th scope="col">created</th>
+                  <th scope="col" class="admin-action-heading">actions</th>
+                </tr>
+              </thead>
+              <tbody id="token-list"></tbody>
+            </table>
+          </div>
+          <div class="admin-pagination">
+            <span id="tokens-page" class="muted"></span
+            ><button type="button" class="button secondary small" id="tokens-previous">
+              previous</button
+            ><button type="button" class="button secondary small" id="tokens-next">next</button>
+          </div>
+        </section>
+        <section
+          id="slugs-panel"
+          class="admin-panel"
+          role="tabpanel"
+          aria-labelledby="slugs-tab"
+          hidden
+        >
+          <div class="admin-panel-heading">
+            <div>
+              <h2>banned slugs</h2>
+              <p>reserved addresses that cannot be published or opened.</p>
+            </div>
+            <span class="admin-count" id="slugs-count"></span>
+          </div>
+          <form id="ban-slug-form" class="admin-filter">
+            <label class="sr-only" for="ban-slug-value">slug to ban</label
+            ><input
+              id="ban-slug-value"
+              maxlength="60"
+              placeholder="slug-to-ban"
+              pattern="[a-z0-9]+(-[a-z0-9]+)*"
+              required
+              autocapitalize="off"
+              spellcheck="false"
+            /><button type="submit" class="button danger secondary small">ban slug</button>
+          </form>
+          <div class="admin-table-wrap">
+            <table class="admin-table">
+              <caption class="sr-only">
+                banned slugs
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">slug</th>
+                  <th scope="col">banned</th>
+                  <th scope="col" class="admin-action-heading">actions</th>
+                </tr>
+              </thead>
+              <tbody id="slug-list"></tbody>
+            </table>
+          </div>
+          <div class="admin-pagination">
+            <span id="slugs-page" class="muted"></span
+            ><button type="button" class="button secondary small" id="slugs-previous">
+              previous</button
+            ><button type="button" class="button secondary small" id="slugs-next">next</button>
+          </div>
+        </section>
+      </div>
+    </main>
+    <dialog
+      id="admin-confirm"
+      class="tool-dialog confirm-dialog"
+      aria-labelledby="confirm-heading"
+      aria-describedby="confirm-note"
+    >
+      <div class="card-titlebar"><h2 id="confirm-heading">confirm action</h2></div>
+      <p id="confirm-note"></p>
+      <form method="dialog" class="dialog-actions">
+        <button type="submit" class="button secondary small" value="cancel" autofocus>cancel</button
+        ><button type="submit" class="button danger small" id="confirm-action" value="confirm">
+          continue
+        </button>
+      </form>
+    </dialog>
+    <div id="admin-menu" class="toolbar-menu admin-menu" popover aria-label="row actions"></div>
+  </body>
 </html>

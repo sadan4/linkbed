@@ -2,12 +2,18 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { embedScript } from './public/model.mjs';
 
-export const escapeHtml = value => String(value).replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
+export const escapeHtml = (value) =>
+  String(value).replace(
+    /[&<>"']/g,
+    (character) =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character],
+  );
 
 export function renderEditor(card, url, starter) {
   const e = escapeHtml;
-  const image = card?.images?.find(image => !/\.(mp4|webm|mov)(?:$|[?#])/i.test(image));
-  const description = card?.description || 'make custom discord cards with real buttons, images, and rich text.';
+  const image = card?.images?.find((image) => !/\.(mp4|webm|mov)(?:$|[?#])/i.test(image));
+  const description =
+    card?.description || 'make custom discord cards with real buttons, images, and rich text.';
   const metadata = `<meta name="description" content="${e(description)}">
 <meta property="og:title" content="${e(card?.title || 'linkbed')}">
 <meta property="og:description" content="${e(description)}">
@@ -24,9 +30,19 @@ ${starter ? `<script id="starter-card" type="application/json">${JSON.stringify(
 
 export function renderCard(card, url) {
   const e = escapeHtml;
-  const imageUrls = card.images.filter(image => !/\.(mp4|webm|mov)(?:$|[?#])/i.test(image));
-  const images = imageUrls.map((image, index) => `<img src="${e(image)}" alt="${e(card.title)} | image ${index + 1}" referrerpolicy="no-referrer" loading="lazy">`).join('');
-  const buttons = card.buttons.map(button => `<a class="button" href="${e(button.url)}" target="_blank" rel="noopener noreferrer">${e(button.label)} <span aria-hidden="true">↗</span></a>`).join('');
+  const imageUrls = card.images.filter((image) => !/\.(mp4|webm|mov)(?:$|[?#])/i.test(image));
+  const images = imageUrls
+    .map(
+      (image, index) =>
+        `<img src="${e(image)}" alt="${e(card.title)} | image ${index + 1}" referrerpolicy="no-referrer" loading="lazy">`,
+    )
+    .join('');
+  const buttons = card.buttons
+    .map(
+      (button) =>
+        `<a class="button" href="${e(button.url)}" target="_blank" rel="noopener noreferrer">${e(button.label)} <span aria-hidden="true">↗</span></a>`,
+    )
+    .join('');
   return `<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -37,7 +53,7 @@ export function renderCard(card, url) {
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="linkbed">
 <meta property="og:url" content="${e(url)}">
-${imageUrls.map(image => `<meta property="og:image" content="${e(image)}">`).join('\n')}
+${imageUrls.map((image) => `<meta property="og:image" content="${e(image)}">`).join('\n')}
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="${e(card.title)}">
 <meta name="twitter:description" content="${e(card.description)}">

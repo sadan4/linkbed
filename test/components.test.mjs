@@ -1,21 +1,47 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  MAX_BYTES, ValidationError, normalizeComponent, normalizeCard, buildEmbed,
-  componentStats, componentImages, componentUrls, embedJson, payloadBytes, httpsUrl, publicHttpUrl,
-  normalizeSlug, normalizeColor, thumbnailUrl, formatUrl, formatColor, formatSlug,
+  MAX_BYTES,
+  ValidationError,
+  normalizeComponent,
+  normalizeCard,
+  buildEmbed,
+  componentStats,
+  componentImages,
+  componentUrls,
+  embedJson,
+  payloadBytes,
+  httpsUrl,
+  publicHttpUrl,
+  normalizeSlug,
+  normalizeColor,
+  thumbnailUrl,
+  formatUrl,
+  formatColor,
+  formatSlug,
 } from '../public/model.mjs';
 
 const text = (content = 'hello') => ({ type: 10, content });
 const root = (...components) => ({ type: 17, components });
-const button = (extra = {}) => ({ type: 2, style: 5, label: 'visit', url: 'https://example.com', ...extra });
+const button = (extra = {}) => ({
+  type: 2,
+  style: 5,
+  label: 'visit',
+  url: 'https://example.com',
+  ...extra,
+});
 const row = (...components) => ({ type: 1, components });
 const item = (url = 'https://example.com/image.png') => ({ media: { url } });
 const thumbnail = (extra = {}) => ({ type: 11, ...item(), ...extra });
-const section = (accessory = thumbnail(), ...components) => ({ type: 9, components: components.length ? components : [text()], accessory });
+const section = (accessory = thumbnail(), ...components) => ({
+  type: 9,
+  components: components.length ? components : [text()],
+  accessory,
+});
 const gallery = (count = 1) => ({ type: 12, items: Array.from({ length: count }, () => item()) });
 const card = (extra = {}) => ({ title: 'hello', url: 'https://example.com', ...extra });
-const invalid = callback => assert.throws(callback, error => error instanceof ValidationError && error.status === 400);
+const invalid = (callback) =>
+  assert.throws(callback, (error) => error instanceof ValidationError && error.status === 400);
 
 test('all eight node types normalize, preserve static fields and collect URLs', () => {
   const input = {
@@ -24,10 +50,15 @@ test('all eight node types normalize, preserve static fields and collect URLs', 
       row(button({ disabled: false })),
       section(thumbnail({ description: null, spoiler: true })),
       section(button({ label: 'side', url: 'http://example.org/side' })),
-      { ...gallery(), items: [{ ...item('http://example.org/video.mp4'), description: 'video', spoiler: false }] },
+      {
+        ...gallery(),
+        items: [{ ...item('http://example.org/video.mp4'), description: 'video', spoiler: false }],
+      },
       { type: 14, divider: false, spacing: 2 },
     ),
-    id: 4294967295, accent_color: null, spoiler: true,
+    id: 4294967295,
+    accent_color: null,
+    spoiler: true,
   };
   const normalized = normalizeComponent(input);
   assert.deepEqual(input.components[0], text(' # heading\nbody '));
@@ -35,9 +66,15 @@ test('all eight node types normalize, preserve static fields and collect URLs', 
   assert.equal(normalized.accent_color, null);
   assert.equal(normalized.components[1].components[0].url, 'https://example.com/');
   assert.deepEqual(componentStats(normalized), { components: 12, media: 1 });
-  assert.deepEqual(componentImages(normalized), ['https://example.com/image.png', 'http://example.org/video.mp4']);
+  assert.deepEqual(componentImages(normalized), [
+    'https://example.com/image.png',
+    'http://example.org/video.mp4',
+  ]);
   assert.deepEqual(componentUrls(normalized), [
-    'https://example.com/', 'https://example.com/image.png', 'http://example.org/side', 'http://example.org/video.mp4',
+    'https://example.com/',
+    'https://example.com/image.png',
+    'http://example.org/side',
+    'http://example.org/video.mp4',
   ]);
   assert.equal(normalized.components[2].accessory.spoiler, true);
   assert.equal(normalized.components[4].items[0].spoiler, false);
@@ -45,17 +82,28 @@ test('all eight node types normalize, preserve static fields and collect URLs', 
 
 test('root and nested child positions reject unsupported types', () => {
   for (const input of [
-    text(), root(), root(root(text())), root(button()), root(thumbnail()),
-    root(row(text())), root(row(thumbnail())), root(row()),
+    text(),
+    root(),
+    root(root(text())),
+    root(button()),
+    root(thumbnail()),
+    root(row(text())),
+    root(row(thumbnail())),
+    root(row()),
     root(row(...Array.from({ length: 6 }, () => button()))),
     root({ type: 9, components: [text()] }),
     root(section({ type: 14 })),
     root(section(thumbnail(), row(button()))),
     root(section(thumbnail(), ...Array.from({ length: 4 }, () => text()))),
     root({ type: 9, components: [], accessory: thumbnail() }),
-    root({ type: 13 }), root({ type: 'constructor' }),
-    root({ type: '10', content: 'no' }), null, [], 'invalid',
-  ]) invalid(() => normalizeComponent(input));
+    root({ type: 13 }),
+    root({ type: 'constructor' }),
+    root({ type: '10', content: 'no' }),
+    null,
+    [],
+    'invalid',
+  ])
+    invalid(() => normalizeComponent(input));
 });
 
 test('unknown fields reject at every nested object boundary', () => {
@@ -69,11 +117,19 @@ test('unknown fields reject at every nested object boundary', () => {
     root({ ...gallery(), extra: true }),
     root({ type: 14, extra: true }),
     root({ type: 12, items: [{ ...item(), extra: true }] }),
-    root({ type: 12, items: [{ media: { url: 'https://example.com/i', content_type: 'image/png' } }] }),
-    root(section({ type: 11, media: { url: 'https://example.com/i', proxy_url: 'https://example.org/i' } })),
+    root({
+      type: 12,
+      items: [{ media: { url: 'https://example.com/i', content_type: 'image/png' } }],
+    }),
+    root(
+      section({
+        type: 11,
+        media: { url: 'https://example.com/i', proxy_url: 'https://example.org/i' },
+      }),
+    ),
     root(row(button({ emoji: { name: '🔥', extra: true } }))),
   ];
-  candidates.forEach(input => invalid(() => normalizeComponent(input)));
+  candidates.forEach((input) => invalid(() => normalizeComponent(input)));
 });
 
 test('40 component cap includes root, row buttons and section accessories', () => {
@@ -81,7 +137,9 @@ test('40 component cap includes root, row buttons and section accessories', () =
   const accepted = root(...separators, section());
   assert.equal(componentStats(normalizeComponent(accepted)).components, 40);
   invalid(() => normalizeComponent(root(...separators, { type: 14 }, section())));
-  const buttons = root(...Array.from({ length: 6 }, () => row(...Array.from({ length: 5 }, () => button()))));
+  const buttons = root(
+    ...Array.from({ length: 6 }, () => row(...Array.from({ length: 5 }, () => button()))),
+  );
   assert.equal(componentStats(normalizeComponent(buttons)).components, 37);
   invalid(() => normalizeComponent(root(...buttons.components, row(button(), button(), button()))));
 });
@@ -105,17 +163,34 @@ test('component ids accept unsigned 32-bit bounds and only repeat zero', () => {
 });
 
 test('link buttons validate style, label, emoji and flags', () => {
-  for (const emoji of [{ name: '🔥', id: null }, { id: '123456789012345678', name: null, animated: true }, { id: '18446744073709551615' }]) {
+  for (const emoji of [
+    { name: '🔥', id: null },
+    { id: '123456789012345678', name: null, animated: true },
+    { id: '18446744073709551615' },
+  ]) {
     const emojiButton = button({ emoji });
     delete emojiButton.label;
-    assert.deepEqual(normalizeComponent(root(row(emojiButton))).components[0].components[0].emoji, emoji);
+    assert.deepEqual(
+      normalizeComponent(root(row(emojiButton))).components[0].components[0].emoji,
+      emoji,
+    );
   }
   for (const extra of [
-    { style: 1 }, { style: '5' }, { label: '' }, { label: 'a'.repeat(81) }, { label: null },
-    { disabled: 1 }, { emoji: {} }, { emoji: { id: '0' } }, { emoji: { id: '18446744073709551616' } },
-    { emoji: { id: 123 } }, { emoji: { id: '12x' } }, { emoji: { id: null, name: null } },
+    { style: 1 },
+    { style: '5' },
+    { label: '' },
+    { label: 'a'.repeat(81) },
+    { label: null },
+    { disabled: 1 },
+    { emoji: {} },
+    { emoji: { id: '0' } },
+    { emoji: { id: '18446744073709551616' } },
+    { emoji: { id: 123 } },
+    { emoji: { id: '12x' } },
+    { emoji: { id: null, name: null } },
     { emoji: { name: '🔥', animated: 'true' } },
-  ]) invalid(() => normalizeComponent(root(row(button(extra)))));
+  ])
+    invalid(() => normalizeComponent(root(row(button(extra)))));
   invalid(() => normalizeComponent(root(row({ type: 2, style: 5, url: 'https://example.com' }))));
   normalizeComponent(root(row(button({ label: 'a'.repeat(80) }))));
 });
@@ -125,10 +200,17 @@ test('emoji presentation normalization fixes Discord rejects without changing te
   const expected = ['⭐', '🦋', '❤️', '1️⃣', '👩‍💻', '🏳️‍🌈', '👍🏽'];
   const component = root(
     text('keep text ⭐️ and </script> unchanged'),
-    row(...emojis.slice(0, 5).map(name => button({ emoji: { name, id: null } }))),
-    row(...emojis.slice(5).map(name => button({ emoji: { name, id: null } })), button({ emoji: { id: '123456789012345678', name: 'custom', animated: true } })),
+    row(...emojis.slice(0, 5).map((name) => button({ emoji: { name, id: null } }))),
+    row(
+      ...emojis.slice(5).map((name) => button({ emoji: { name, id: null } })),
+      button({ emoji: { id: '123456789012345678', name: 'custom', animated: true } }),
+    ),
   );
-  const names = node => node.components.slice(1).flatMap(row => row.components).map(button => button.emoji.name);
+  const names = (node) =>
+    node.components
+      .slice(1)
+      .flatMap((row) => row.components)
+      .map((button) => button.emoji.name);
   const normalized = normalizeComponent(component);
   assert.deepEqual(names(normalized), [...expected, 'custom']);
   assert.equal(normalized.components[0].content, component.components[0].content);
@@ -145,13 +227,30 @@ test('url schemes, encoded lengths, credentials and ports are validated', () => 
   assert.equal(httpsUrl('https://EXAMPLE.com:443/a'), 'https://example.com/a');
   invalid(() => httpsUrl('http://example.com'));
   for (const url of [
-    'javascript:alert(1)', 'data:image/png;base64,abc', 'ftp://example.com',
-    'https://user:pass@example.com', 'https://example.com:444/', 'http://example.com:443/',
-    'https://localhost', 'https://foo.internal', 'https://foo.local/',
-  ]) invalid(() => normalizeComponent(root({ type: 12, items: [item(url)] })));
-  invalid(() => normalizeComponent(root(row(button({ url: 'https://example.com/' + '界'.repeat(60) })))));
-  invalid(() => normalizeComponent(root(gallery(), row(button({ url: 'https://example.com/' + 'x'.repeat(513) })))));
-  invalid(() => normalizeComponent(root({ type: 12, items: [item('https://example.com/' + 'x'.repeat(2048))] })));
+    'javascript:alert(1)',
+    'data:image/png;base64,abc',
+    'ftp://example.com',
+    'https://user:pass@example.com',
+    'https://example.com:444/',
+    'http://example.com:443/',
+    'https://localhost',
+    'https://foo.internal',
+    'https://foo.local/',
+  ])
+    invalid(() => normalizeComponent(root({ type: 12, items: [item(url)] })));
+  invalid(() =>
+    normalizeComponent(root(row(button({ url: 'https://example.com/' + '界'.repeat(60) })))),
+  );
+  invalid(() =>
+    normalizeComponent(
+      root(gallery(), row(button({ url: 'https://example.com/' + 'x'.repeat(513) }))),
+    ),
+  );
+  invalid(() =>
+    normalizeComponent(
+      root({ type: 12, items: [item('https://example.com/' + 'x'.repeat(2048))] }),
+    ),
+  );
 });
 
 test('thumbnail videos, descriptions and optional booleans reject invalid input', () => {
@@ -160,11 +259,22 @@ test('thumbnail videos, descriptions and optional booleans reject invalid input'
     normalizeComponent(root({ type: 12, items: [item(url)] }));
   }
   normalizeComponent(root(section(thumbnail({ description: 'a'.repeat(1024), spoiler: false }))));
-  for (const extra of [{ description: 1 }, { description: 'a'.repeat(1025) }, { spoiler: null }, { spoiler: 'false' }]) {
+  for (const extra of [
+    { description: 1 },
+    { description: 'a'.repeat(1025) },
+    { spoiler: null },
+    { spoiler: 'false' },
+  ]) {
     invalid(() => normalizeComponent(root(section(thumbnail(extra)))));
     invalid(() => normalizeComponent(root({ type: 12, items: [{ ...item(), ...extra }] })));
   }
-  for (const extra of [{ accent_color: -1 }, { accent_color: 16777216 }, { accent_color: 1.5 }, { accent_color: '#ffffff' }, { spoiler: 1 }]) {
+  for (const extra of [
+    { accent_color: -1 },
+    { accent_color: 16777216 },
+    { accent_color: 1.5 },
+    { accent_color: '#ffffff' },
+    { spoiler: 1 },
+  ]) {
     invalid(() => normalizeComponent({ ...root(text()), ...extra }));
   }
   normalizeComponent({ ...root(text()), accent_color: 16777215, spoiler: false });
@@ -189,10 +299,22 @@ test('actual escaped UTF-8 payload permits exactly 3000 bytes and rejects one mo
 });
 
 test('component card is authoritative and serialization remains usable for drafts', () => {
-  const component = root(...Array.from({ length: 2 }, () => row(...Array.from({ length: 4 }, () => button()))), {
-    type: 12, items: [item('http://example.com/image.png')],
-  });
-  const normalized = normalizeCard(card({ component, images: 'ignored', buttons: 'ignored', description: 'd'.repeat(4096), color: null }));
+  const component = root(
+    ...Array.from({ length: 2 }, () => row(...Array.from({ length: 4 }, () => button()))),
+    {
+      type: 12,
+      items: [item('http://example.com/image.png')],
+    },
+  );
+  const normalized = normalizeCard(
+    card({
+      component,
+      images: 'ignored',
+      buttons: 'ignored',
+      description: 'd'.repeat(4096),
+      color: null,
+    }),
+  );
   assert.deepEqual(normalized.buttons, []);
   assert.deepEqual(normalized.images, ['http://example.com/image.png']);
   assert.equal(normalized.color, null);
@@ -204,7 +326,10 @@ test('component card is authoritative and serialization remains usable for draft
   assert.ok(payloadBytes(draft) > MAX_BYTES);
   assert.equal(buildEmbed(draft).component, draft.component);
   assert.ok(embedJson(draft).length > MAX_BYTES);
-  assert.deepEqual(componentStats({ type: 17, components: [null, { type: 9, accessory: { type: 11 } }] }), { components: 3, media: 0 });
+  assert.deepEqual(
+    componentStats({ type: 17, components: [null, { type: 9, accessory: { type: 11 } }] }),
+    { components: 3, media: 0 },
+  );
 });
 
 test('field formatting preserves URL restrictions and normalizes colors and custom links', () => {
@@ -221,30 +346,45 @@ test('field formatting preserves URL restrictions and normalizes colors and cust
   assert.equal(normalizeColor(formatColor('123')), '#112233');
   assert.equal(formatSlug(' Café / Card '), 'cafe-card');
   assert.equal(normalizeSlug(formatSlug('MY CARD')), 'my-card');
-  for (const value of ['', 'api', 'healthz', 'bad--link', 'a'.repeat(61)]) invalid(() => normalizeSlug(value));
+  for (const value of ['', 'api', 'healthz', 'bad--link', 'a'.repeat(61)])
+    invalid(() => normalizeSlug(value));
   invalid(() => thumbnailUrl('https://example.com/video%2Emp4'));
 });
 
 test('legacy cards retain simple payload, default arrays, metadata bounds and byte validation', () => {
-  const normalized = normalizeCard(card({
-    title: 'hello *world*', description: 'body', color: '#ABCDEF',
-    buttons: [{ label: 'go', url: 'https://example.com/go' }], images: ['https://example.com/i.png'],
-  }));
+  const normalized = normalizeCard(
+    card({
+      title: 'hello *world*',
+      description: 'body',
+      color: '#ABCDEF',
+      buttons: [{ label: 'go', url: 'https://example.com/go' }],
+      images: ['https://example.com/i.png'],
+    }),
+  );
   assert.equal(normalized.color, '#abcdef');
   assert.equal('component' in normalized, false);
   const component = buildEmbed(normalized).component;
   assert.equal(component.accent_color, 0xabcdef);
   assert.equal(component.components[0].content, '## hello \\*world\\*\nbody');
-  assert.deepEqual(component.components.map(node => node.type), [10, 12, 14, 1]);
+  assert.deepEqual(
+    component.components.map((node) => node.type),
+    [10, 12, 14, 1],
+  );
   assert.equal(component.components[3].components[0].style, 5);
   assert.deepEqual(normalizeCard(card()).buttons, []);
   assert.deepEqual(normalizeCard(card()).images, []);
   assert.equal(buildEmbed(normalizeCard(card({ color: null }))).component.accent_color, null);
   normalizeCard(card({ title: 't'.repeat(256), url: 'https://example.com/' + 'p'.repeat(1000) }));
   for (const extra of [
-    { title: '' }, { title: 't'.repeat(257) }, { description: '界'.repeat(1000) },
-    { url: 'http://example.com' }, { color: [] }, { buttons: null }, { images: null },
+    { title: '' },
+    { title: 't'.repeat(257) },
+    { description: '界'.repeat(1000) },
+    { url: 'http://example.com' },
+    { color: [] },
+    { buttons: null },
+    { images: null },
     { buttons: Array.from({ length: 6 }, () => ({ label: 'go', url: 'https://example.com' })) },
     { images: Array(11).fill('https://example.com/i.png') },
-  ]) invalid(() => normalizeCard(card(extra)));
+  ])
+    invalid(() => normalizeCard(card(extra)));
 });

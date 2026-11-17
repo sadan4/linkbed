@@ -18,8 +18,19 @@ export function createJsonEditor(textarea, onChange) {
     if (change.origin !== 'setValue') onChange();
   });
   return {
-    set(value) { if (value !== editor.getValue()) editor.setValue(value); },
-    focus() { editor.refresh(); editor.focus(); },
-    format() { editor.replaceRange(JSON.stringify(JSON.parse(editor.getValue()), null, 2), { line: 0, ch: 0 }, { line: editor.lastLine(), ch: editor.getLine(editor.lastLine()).length }); },
+    set(value) {
+      if (value !== editor.getValue()) editor.setValue(value);
+    },
+    focus() {
+      editor.refresh();
+      editor.focus();
+    },
+    format() {
+      editor.replaceRange(
+        JSON.stringify(JSON.parse(editor.getValue()), null, 2),
+        { line: 0, ch: 0 },
+        { line: editor.lastLine(), ch: editor.getLine(editor.lastLine()).length },
+      );
+    },
   };
 }

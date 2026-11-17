@@ -39,13 +39,24 @@ const staticFiles = {
 };
 
 export function createApp(options = {}) {
-  const allowAdmin = req => options.localAdmin !== false && isLocalAdminRequest(req, server.address()?.address);
+  const allowAdmin = (req) =>
+    options.localAdmin !== false && isLocalAdminRequest(req, server.address()?.address);
   const handler = createHandler({ ...options, allowAdmin });
   const server = createServer({ maxHeaderSize: 16384, requestTimeout: 15000 }, (req, res) => {
     const path = new URL(req.url, 'http://localhost').pathname;
-    const adminFile = path === '/admin' ? ['admin.html', 'text/html; charset=utf-8'] : path === '/admin.mjs' ? ['admin.mjs', 'text/javascript; charset=utf-8'] : null;
+    const adminFile =
+      path === '/admin'
+        ? ['admin.html', 'text/html; charset=utf-8']
+        : path === '/admin.mjs'
+          ? ['admin.mjs', 'text/javascript; charset=utf-8']
+          : null;
     if (adminFile && allowAdmin(req) && ['GET', 'HEAD'].includes(req.method)) {
-      res.writeHead(200, { ...securityHeaders, 'content-type': adminFile[1], 'cache-control': 'no-store', 'x-robots-tag': 'noindex, nofollow' });
+      res.writeHead(200, {
+        ...securityHeaders,
+        'content-type': adminFile[1],
+        'cache-control': 'no-store',
+        'x-robots-tag': 'noindex, nofollow',
+      });
       return res.end(req.method === 'HEAD' ? undefined : readFileSync(join(root, adminFile[0])));
     }
     if (['GET', 'HEAD'].includes(req.method) && staticFiles[path]) {

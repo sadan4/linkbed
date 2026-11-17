@@ -11,5 +11,5 @@ export function icon(name) {
 }
 
 export function mountIcons(root = document) {
-  root.querySelectorAll('[data-icon]').forEach(node => node.replaceWith(icon(node.dataset.icon)));
+  root.querySelectorAll('[data-icon]').forEach((node) => node.replaceWith(icon(node.dataset.icon)));
 }
