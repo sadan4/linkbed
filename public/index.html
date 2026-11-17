@@ -60,14 +60,13 @@
           <button type="button" class="button secondary small" id="edit-json"><span data-icon="square-pen"></span>edit json</button>
           <button type="button" class="button secondary small" id="export-toggle" popovertarget="export-menu"><span data-icon="download"></span>export<span data-icon="chevron-down"></span></button>
           <button type="button" class="button secondary small" id="show-embed"><span data-icon="code-xml"></span>embed</button>
-          <button id="publish-button" class="button primary small" type="submit" form="card-form"><span id="publish-label">publish</span></button>
+          <button id="publish-button" class="button primary small" type="submit" form="card-form" aria-haspopup="dialog" aria-controls="publish-dialog"><span id="publish-label">publish</span></button>
         </div>
       </div>
       <div id="export-menu" class="toolbar-menu" popover>
         <button type="button" id="copy-message-json"><span data-icon="copy"></span>copy json</button>
         <button type="button" id="download-json"><span data-icon="download"></span>download json</button>
       </div>
-      <p class="publish-terms">by publishing, you agree to the <a href="/terms" target="_blank" rel="noopener noreferrer">terms</a>. <a href="/privacy" target="_blank" rel="noopener noreferrer">privacy policy</a></p>
       <div class="maker-tabs">
         <div class="maker-tablist" role="tablist" aria-label="card maker">
           <button id="edit-tab" type="button" role="tab" aria-selected="true" aria-controls="card-form" tabindex="0">edit</button>
@@ -159,12 +158,22 @@
       <p>made by <a href="https://ryanaque.com" target="_blank" rel="noopener noreferrer">may</a> <span aria-hidden="true">·</span> <a href="https://github.com/schmayterling/linkbed" target="_blank" rel="noopener noreferrer">this site is open source!</a></p>
     </footer>
   </main>
+  <dialog id="publish-dialog" class="tool-dialog account-dialog" aria-labelledby="publish-heading" aria-describedby="publish-note">
+    <div class="card-titlebar"><h2 id="publish-heading">publish card</h2><button type="button" class="text-button" data-close aria-label="close publish confirmation"><span data-icon="x"></span></button></div>
+    <p id="publish-note">anyone with this link can view your card:<br><a id="publish-url" target="_blank" rel="noopener noreferrer"></a></p>
+    <p id="publish-rename-warning" class="hint" hidden></p>
+    <form id="publish-form">
+      <label class="confirm-field" for="publish-confirm"><input id="publish-confirm" type="checkbox" required autofocus><span>i agree to the <a href="/terms" target="_blank" rel="noopener noreferrer">terms of service</a> and have read the <a href="/privacy" target="_blank" rel="noopener noreferrer">privacy policy</a>.</span></label>
+      <p id="publish-error" class="form-status" role="status"></p>
+      <div class="dialog-actions"><button type="button" class="button secondary small" data-close>cancel</button><button type="submit" class="button primary small" id="confirm-publish" disabled>publish card</button></div>
+    </form>
+  </dialog>
   <dialog id="report-dialog" class="tool-dialog account-dialog" aria-labelledby="report-heading">
     <div class="card-titlebar"><h2 id="report-heading">report abuse</h2><button type="button" class="text-button" data-close aria-label="close abuse report"><span data-icon="x"></span></button></div>
     <form id="report-form" novalidate>
       <label for="report-url">link to report</label>
       <input id="report-url" type="url" required maxlength="2048" placeholder="https://linkbed.me/your-card" autocomplete="url" spellcheck="false" autofocus>
-      <label class="report-confirm" for="report-confirm"><input id="report-confirm" type="checkbox" required aria-describedby="report-confirm-error"><span>i confirm that this link contains abusive content. misuse of this form may bar me from creating linkbeds or reporting other instances.</span></label>
+      <label class="confirm-field" for="report-confirm"><input id="report-confirm" type="checkbox" required aria-describedby="report-confirm-error"><span>i confirm that this link contains abusive content. misuse of this form may bar me from creating linkbeds or reporting other instances.</span></label>
       <p id="report-confirm-error" class="field-error" hidden></p>
       <p id="report-error" class="form-status" role="status"></p>
       <div class="dialog-actions"><button type="button" class="button secondary small" data-close>cancel</button><button type="submit" class="button primary small" id="send-report">send report</button></div>

@@ -143,6 +143,7 @@ function setBusy(value) {
   $('#account-panel').setAttribute('aria-busy', String(value));
   $('#sign-in-dialog').setAttribute('aria-busy', String(value));
   $('#report-dialog').setAttribute('aria-busy', String(value));
+  $('#publish-dialog').setAttribute('aria-busy', String(value));
   $('#account-new-token').setAttribute('aria-busy', String(value));
   $('#card-form').setAttribute('aria-busy', String(value));
 }
@@ -554,20 +555,44 @@ $('#url-import-form').addEventListener('submit', async event => {
   finally { $('#import-button').textContent = 'use template'; setBusy(false); }
 });
 
-$('#publish-button').addEventListener('click', () => {
-  showErrors = true;
-  if (validateEditor().length) setTab('edit');
-});
-$('#card-form').addEventListener('submit', async event => {
+const publishDialog = $('#publish-dialog'), publishForm = $('#publish-form'), publishConfirm = $('#publish-confirm'), confirmPublish = $('#confirm-publish');
+$('#card-form').addEventListener('submit', event => {
   event.preventDefault();
-  if (busy || jsonDirty) return;
+  if (busy || jsonDirty || publishDialog.open) return;
   $('#form-status').textContent = '';
   showErrors = true;
-  if (validateEditor().length) return;
+  if (validateEditor().length) { setTab('edit'); return; }
+  publishForm.reset();
+  confirmPublish.disabled = true;
+  $('#publish-error').textContent = '';
+  $('#publish-heading').textContent = editing ? 'save changes?' : 'publish card?';
+  confirmPublish.textContent = editing ? 'save changes' : 'publish card';
+  $('#publish-url').textContent = cardUrl(fields.slug.value);
+  $('#publish-url').href = cardUrl(fields.slug.value);
+  const renamed = editing && fields.slug.value !== editing;
+  $('#publish-rename-warning').hidden = !renamed;
+  $('#publish-rename-warning').textContent = renamed ? 'this changes /' + editing + ' to /' + fields.slug.value + '. the old link will stop working.' : '';
+  closeMenus();
+  publishDialog.showModal();
+});
+publishConfirm.addEventListener('change', () => {
+  confirmPublish.disabled = busy || !publishConfirm.checked;
+  $('#publish-error').textContent = '';
+});
+publishDialog.addEventListener('close', () => {
+  publishForm.reset();
+  confirmPublish.disabled = true;
+  $('#publish-error').textContent = '';
+});
+publishForm.addEventListener('submit', async event => {
+  event.preventDefault();
+  if (busy || !publishDialog.open || !publishConfirm.checked) return;
+  if (validateEditor().length) { publishDialog.close(); setTab('edit'); return; }
+  let saved = false;
   try {
     const card = normalizeCard(draft());
-    if (editing && fields.slug.value !== editing && !await confirmAction('change /' + editing + ' to /' + fields.slug.value + '? the old link will stop working.', 'change link')) return;
-    setBusy(true); $('#publish-label').textContent = 'saving…';
+    setBusy(true); $('#publish-label').textContent = confirmPublish.textContent = 'saving…';
+    $('#publish-error').textContent = '';
     const published = await withSessionLock(async () => {
       const session = await api('/api/session');
       if (!session.authenticated && !session.guest) {
@@ -577,9 +602,11 @@ $('#card-form').addEventListener('submit', async event => {
       return api(editing ? '/api/cards/' + editing : '/api/cards', { method: editing ? 'PUT' : 'POST', body: JSON.stringify({ ...card, slug: fields.slug.value }) });
     });
     editing = published.slug; dirty = false; slugEdited = true;
-    await refreshCards(); toast('saved.');
-  } catch (error) { $('#form-status').textContent = error.message; }
-  finally { setBusy(false); }
+    await refreshCards();
+    saved = true;
+  } catch (error) { $('#publish-error').textContent = error.message; }
+  finally { setBusy(false); confirmPublish.textContent = editing ? 'save changes' : 'publish card'; }
+  if (saved) { publishDialog.close(); toast('saved.'); }
 });
 
 async function copy(text) {

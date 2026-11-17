@@ -131,13 +131,14 @@ button:disabled { opacity: 0.48; cursor: not-allowed; }
 .form-status { color: var(--danger); font-size: max(var(--text-min), 0.8125rem); margin-top: 12px; }
 .form-status:empty { display: none; }
 .field-error { margin: 6px 0 0; color: var(--danger); font-size: max(var(--text-min), 0.75rem); line-height: 1.5; }
-.report-confirm { justify-content: flex-start; align-items: flex-start; margin: 18px 0 0; gap: 10px; cursor: pointer; }
-.report-confirm input[type="checkbox"] { appearance: none; flex: 0 0 18px; display: grid; place-content: center; width: 18px; height: 18px; padding: 0; margin-top: 3px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); cursor: pointer; }
-.report-confirm input::before { content: ""; width: 5px; height: 9px; margin-top: -2px; border: solid var(--accent-ink); border-width: 0 2px 2px 0; transform: rotate(45deg); visibility: hidden; }
-.report-confirm input:checked { border-color: var(--accent); background: var(--accent); }
-.report-confirm input:checked::before { visibility: visible; }
-.report-confirm:hover input:enabled { border-color: var(--accent); }
-.report-confirm input:focus { outline-offset: 2px; }
+.confirm-field { justify-content: flex-start; align-items: flex-start; margin: 18px 0 0; gap: 10px; cursor: pointer; }
+.confirm-field input[type="checkbox"] { appearance: none; flex: 0 0 18px; display: grid; place-content: center; width: 18px; height: 18px; padding: 0; margin-top: 3px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); cursor: pointer; }
+.confirm-field input::before { content: ""; width: 5px; height: 9px; margin-top: -2px; border: solid var(--accent-ink); border-width: 0 2px 2px 0; transform: rotate(45deg); visibility: hidden; }
+.confirm-field input:checked { border-color: var(--accent); background: var(--accent); }
+.confirm-field input:checked::before { visibility: visible; }
+.confirm-field:hover input:enabled { border-color: var(--accent); }
+.confirm-field input:focus { outline-offset: 2px; }
+#publish-url { overflow-wrap: anywhere; }
 body[data-view="legal"] .site-header, body[data-view="legal"] main { width: min(calc(100% - 40px), 720px); }
 body[data-view="legal"] .site-header nav { display: flex; min-width: 0; flex-wrap: nowrap; gap: 14px; }
 body[data-view="legal"] main { padding-top: 32px; min-height: 0; }
@@ -249,7 +250,6 @@ body[data-view="admin"] main { padding-top: 24px; }
 .empty-state { padding: 22px 0 5px; color: var(--muted); }
 .empty-state p { margin-bottom: 8px; }
 .empty-state .hint { margin: 0; }
-.publish-terms { margin: 0; padding: 4px 0; color: var(--muted); text-align: right; font-size: max(var(--text-min), 0.6875rem); }
 .editor-toolbar { position: sticky; top: 0; z-index: 2; background: var(--page-bg) url('/paper-grain.svg') repeat; }
 .editor-heading { align-items: center; min-height: 64px; margin-bottom: 0; padding: 14px 0; border-bottom: 1px solid var(--line); }
 .editor-heading h1 { margin-bottom: 0; flex-shrink: 0; }

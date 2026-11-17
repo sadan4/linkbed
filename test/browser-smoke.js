@@ -120,6 +120,18 @@
   check(!body.hidden && toggle.getAttribute('aria-expanded') === 'true', 'block expands accessibly');
   fields.remove();
 
+  const publishDialog = document.querySelector('#publish-dialog');
+  const publishConfirm = document.querySelector('#publish-confirm');
+  const confirmPublish = document.querySelector('#confirm-publish');
+  document.querySelector('#publish-button').click();
+  check(publishDialog.open && !publishConfirm.checked && confirmPublish.disabled, 'publish requires explicit unchecked confirmation');
+  document.querySelector('#publish-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+  check(publishDialog.open && !document.querySelector('#card-form').inert, 'unchecked publish does not start saving');
+  publishConfirm.click();
+  check(!confirmPublish.disabled, 'checking acknowledgement enables final publish');
+  publishDialog.querySelector('[data-close]').click();
+  await new Promise(resolve => publishDialog.addEventListener('close', resolve, { once: true }));
+  check(!publishConfirm.checked && confirmPublish.disabled, 'closing publish clears confirmation');
   check(document.querySelector('#make-card').matches('a[href="#new"]') && document.querySelector('#show-cards').matches('a[href="#cards"]'), 'navigation uses links');
   const header = document.querySelector('.site-header');
   const position = scrollY;
@@ -134,5 +146,5 @@
   check(!header.inert && !header.classList.contains('is-hidden'), 'navigation returns at exact top');
   spacer.remove();
   scrollTo(0, position); window.dispatchEvent(new Event('scroll'));
-  return { passed: 45 };
+  return { passed: 49 };
 })()
