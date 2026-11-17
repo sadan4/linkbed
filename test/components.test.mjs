@@ -120,6 +120,26 @@ test('link buttons validate style, label, emoji and flags', () => {
   normalizeComponent(root(row(button({ label: 'a'.repeat(80) }))));
 });
 
+test('emoji presentation normalization fixes Discord rejects without changing text or required selectors', () => {
+  const emojis = ['⭐️', '🦋️', '❤️', '1️⃣', '👩‍💻', '🏳️‍🌈', '👍🏽'];
+  const expected = ['⭐', '🦋', '❤️', '1️⃣', '👩‍💻', '🏳️‍🌈', '👍🏽'];
+  const component = root(
+    text('keep text ⭐️ and </script> unchanged'),
+    row(...emojis.slice(0, 5).map(name => button({ emoji: { name, id: null } }))),
+    row(...emojis.slice(5).map(name => button({ emoji: { name, id: null } })), button({ emoji: { id: '123456789012345678', name: 'custom', animated: true } })),
+  );
+  const names = node => node.components.slice(1).flatMap(row => row.components).map(button => button.emoji.name);
+  const normalized = normalizeComponent(component);
+  assert.deepEqual(names(normalized), [...expected, 'custom']);
+  assert.equal(normalized.components[0].content, component.components[0].content);
+  // Stored cards and unfinished drafts serialize without requiring a rewrite.
+  const serialized = JSON.parse(embedJson({ component })).component;
+  assert.deepEqual(names(serialized), [...expected, 'custom']);
+  assert.equal(serialized.components[0].content, component.components[0].content);
+  assert.equal(component.components[1].components[0].emoji.name, '⭐️');
+  assert.equal(payloadBytes({ component }), Buffer.byteLength(embedJson({ component })));
+});
+
 test('url schemes, encoded lengths, credentials and ports are validated', () => {
   assert.equal(publicHttpUrl('http://EXAMPLE.com:80/a'), 'http://example.com/a');
   assert.equal(httpsUrl('https://EXAMPLE.com:443/a'), 'https://example.com/a');

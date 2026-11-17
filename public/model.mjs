@@ -62,6 +62,12 @@ function mediaItem(value, label) {
   return item;
 }
 
+function normalizeEmojiPresentation(value) {
+  return !value?.id && typeof value?.name === 'string'
+    ? { ...value, name: value.name.replace(/(\p{Emoji_Presentation})\uFE0F/gu, '$1') }
+    : value;
+}
+
 export function normalizeEmoji(value) {
   object(value, ['name', 'id', 'animated'], 'emoji');
   const result = {};
@@ -74,7 +80,7 @@ export function normalizeEmoji(value) {
   if ('name' in value) result.name = value.name === null ? null : string(value.name, 'emoji name', Infinity, true);
   boolean(value, result, 'animated');
   if (!result.id && !result.name) throw new ValidationError('emoji needs a name or id.');
-  return result;
+  return normalizeEmojiPresentation(result);
 }
 
 export function formatUrl(value) {
@@ -295,7 +301,7 @@ export function buildEmbed(card) {
 }
 
 function serialize(embed) {
-  return JSON.stringify(embed).replace(/</g, '\\u003c');
+  return JSON.stringify(embed, (key, value) => key === 'emoji' ? normalizeEmojiPresentation(value) : value).replace(/</g, '\\u003c');
 }
 
 function checkBytes(embed) {
