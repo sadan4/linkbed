@@ -6,6 +6,47 @@ const literal = value => String(value).replace(/([\\*_`~|\[\]<>#])/g, '\\$1');
 const text = content => ({ type: 10, content });
 const nonempty = value => typeof value === 'string' && value.trim();
 
+export function linkedEmbedCode(pageUrl, sourceUrl) {
+  const href = publicHttpUrl(new URL('/linkbed.json', pageUrl).href, 'website url');
+  const escaped = href.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+  return {
+    head: '<link rel="discord:component-embed" type="application/json" href="' + escaped + '">',
+    route: `export async function GET() {
+  const headers = { "cache-control": "no-store" };
+  try {
+    const upstream = await fetch(${JSON.stringify(sourceUrl)}, {
+      cache: "no-store",
+      redirect: "error",
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!upstream.ok || !upstream.body) throw new Error("embed unavailable");
+    const reader = upstream.body.getReader();
+    const chunks = [];
+    let bytes = 0;
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        bytes += value.byteLength;
+        if (bytes > 3000) throw new Error("embed too large");
+        chunks.push(value);
+      }
+    } finally {
+      await reader.cancel();
+    }
+    const body = Buffer.concat(chunks).toString("utf8");
+    if (JSON.parse(body)?.component?.type !== 17) throw new Error("invalid embed");
+    return new Response(body, {
+      headers: { ...headers, "content-type": "application/json; charset=utf-8" },
+    });
+  } catch {
+    return new Response(null, { status: 502, headers });
+  }
+}
+`,
+  };
+}
+
 function richEmbed(embed) {
   if (!object(embed)) invalid('invalid embed.');
   if (embed.type === 'components') {

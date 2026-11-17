@@ -1,4 +1,5 @@
 User-agent: *
 Allow: /p/
+Allow: /api/embeds/
 Disallow: /api/
 Disallow: /admin

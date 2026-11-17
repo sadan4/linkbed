@@ -4,7 +4,7 @@ import { embedScript } from './public/model.mjs';
 
 export const escapeHtml = value => String(value).replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
 
-export function renderEditor(card, url) {
+export function renderEditor(card, url, starter) {
   const e = escapeHtml;
   const image = card?.images?.find(image => !/\.(mp4|webm|mov)(?:$|[?#])/i.test(image));
   const description = card?.description || 'make custom discord cards with real buttons, images, and rich text.';
@@ -15,7 +15,8 @@ export function renderEditor(card, url) {
 <meta property="og:url" content="${e(url)}">
 ${image ? `<meta property="og:image" content="${e(image)}">` : ''}
 ${card?.color ? `<meta name="theme-color" content="${e(card.color)}">` : ''}
-${card ? embedScript(card) : ''}`;
+${card ? embedScript(card) : ''}
+${starter ? `<script id="starter-card" type="application/json">${JSON.stringify(starter).replace(/</g, '\\u003c')}</script>` : ''}`;
   return readFileSync(fileURLToPath(new URL('./editor.html', import.meta.url)), 'utf8')
     .replace('<!-- card metadata -->', () => metadata)
     .replaceAll('<!-- public host -->', e(new URL(url).host));

@@ -56,7 +56,7 @@
     --success: oklch(0.78 0.14 150);
   }
 }
-* { box-sizing: border-box; }
+* { box-sizing: border-box; overscroll-behavior: none; }
 html { scrollbar-gutter: stable; }
 html:has(.tool-dialog:modal) { overflow: hidden; }
 [hidden] { display: none !important; }
@@ -257,8 +257,8 @@ body[data-view="admin"] main { padding-top: 24px; }
 .toolbar-actions .button { min-height: 36px; font-size: max(var(--text-min), 0.75rem); font-weight: 500; gap: 7px; padding-inline: 11px; }
 #card-form, #card-form input, #card-form textarea, .composer-field { scroll-margin-top: calc(var(--toolbar-height, 64px) + 20px); }
 #editor-notice { scroll-margin-top: calc(var(--toolbar-height, 64px) + 8px); }
-.tool-dialog { --card-padding: 24px; width: min(calc(100% - 40px), 600px); max-height: calc(100dvh - 40px); margin: auto; padding: 24px; overflow: auto; scrollbar-gutter: stable; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--ink); }
-.tool-dialog > .card-titlebar { margin-top: calc(-1 * var(--card-padding)); height: var(--control-height); background: var(--editor-surface); }
+.tool-dialog { --card-padding: 24px; width: min(calc(100% - 40px), 600px); max-height: calc(100dvh - 40px); margin: auto; padding: 24px; overflow: auto; scroll-padding-top: calc(var(--control-height) + 16px); scrollbar-gutter: stable; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--ink); }
+.tool-dialog > .card-titlebar { position: sticky; top: calc(-1 * var(--card-padding)); z-index: 4; margin-top: calc(-1 * var(--card-padding)); height: var(--control-height); background: var(--editor-surface); }
 .tool-dialog > .card-titlebar h2 { font-size: max(var(--text-min), 0.875rem); font-weight: 600; }
 .tool-dialog > .card-titlebar .text-button { margin-left: auto; min-width: 28px; min-height: 28px; border-radius: 4px; }
 .account-dialog { max-width: 512px; }
@@ -293,6 +293,12 @@ body[data-view="admin"] main { padding-top: 24px; }
 .tool-dialog h2 { font-size: 1rem; }
 .tool-dialog textarea { background: var(--surface); font: max(var(--text-min), 0.75rem)/1.6 ui-monospace, SFMono-Regular, Consolas, monospace; }
 .tool-dialog .hint { margin: 0 0 12px; }
+#embed-mode { margin-bottom: 14px; }
+#embed-live { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line); }
+#embed-live .json-actions { margin-bottom: 16px; }
+.embed-ai { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line); }
+#copy-prompt { height: auto; min-height: var(--control-height); white-space: normal; text-align: left; padding-block: 8px; }
+.embed-ai .hint { margin: 10px 0 0; }
 .danger-zone { --card-padding: 20px; padding: 0 var(--card-padding) var(--card-padding); border: 1px solid color-mix(in oklab, var(--danger) 35%, var(--bg)); border-radius: 10px; background: color-mix(in oklab, var(--danger) 4%, var(--bg)); }
 .danger-zone > .card-titlebar { background: color-mix(in oklab, var(--danger) 12%, var(--bg)); border-color: color-mix(in oklab, var(--danger) 35%, var(--bg)); }
 .danger-zone h2 { margin-bottom: 6px; color: var(--danger); font-weight: 650; }
@@ -567,7 +573,7 @@ label.check-field { justify-content: space-between; }
   select { align-items: center; padding: 8px 12px; gap: 12px; font-size: max(var(--text-min), 0.8125rem); }
   select:open { border-color: var(--accent); }
   select::picker-icon { width: 14px; height: 14px; content: ""; background: currentColor; mask: url('/vendor/chevron-down.svg') center / contain no-repeat; }
-  select::picker(select) { --popover-offset: -6px; margin-top: 6px; padding: 5px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); color: var(--ink); }
+  select::picker(select) { overscroll-behavior: none; --popover-offset: -6px; margin-top: 6px; padding: 5px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); color: var(--ink); }
   select[data-opens-above]::picker(select) { --popover-offset: 6px; transform-origin: center bottom; }
   @supports (transition-behavior: allow-discrete) {
     select::picker(select) { opacity: 0; transform: translateY(var(--popover-offset)) scale(0.98); transform-origin: center top; transition: opacity 91.43ms ease-out, transform 91.43ms cubic-bezier(0.22, 1, 0.36, 1), display 91.43ms allow-discrete, overlay 91.43ms allow-discrete; }

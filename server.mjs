@@ -11,6 +11,7 @@ const staticFiles = {
   '/privacy-emoji.png': ['privacy-emoji.png', 'image/png'],
   '/legal.mjs': ['legal.mjs', 'text/javascript; charset=utf-8'],
   '/app.mjs': ['app.mjs', 'text/javascript; charset=utf-8'],
+  '/prompt.md': ['prompt.md', 'text/plain; charset=utf-8'],
   '/model.mjs': ['model.mjs', 'text/javascript; charset=utf-8'],
   '/components.mjs': ['components.mjs', 'text/javascript; charset=utf-8'],
   '/interchange.mjs': ['interchange.mjs', 'text/javascript; charset=utf-8'],

@@ -213,9 +213,21 @@
   </dialog>
   <dialog id="embed-dialog" class="tool-dialog" aria-labelledby="embed-heading">
     <div class="card-titlebar"><h2 id="embed-heading">embed</h2><button type="button" class="text-button" data-close aria-label="close embed"><span data-icon="x"></span></button></div>
-    <p class="hint">paste inside your page’s &lt;head&gt;.</p>
-    <textarea id="embed-code" readonly rows="8" spellcheck="false" aria-label="discord embed script"></textarea>
+    <label for="embed-mode">embed type</label>
+    <select id="embed-mode"><option value="snapshot">snapshot</option><option value="live">live</option></select>
+    <p id="embed-hint" class="hint" role="status">paste into your page’s html head. copy again after edits.</p>
+    <textarea id="embed-code" readonly rows="8" spellcheck="false" aria-label="discord embed code"></textarea>
     <div class="json-actions"><button type="button" class="button primary small" id="copy-code">copy embed code</button></div>
+    <div id="embed-live" hidden>
+      <p class="hint">to serve the saved card from your own domain, add this route at <code>app/linkbed.json/route.ts</code> in next.js, or set up the same server proxy for your host.</p>
+      <textarea id="embed-route" readonly rows="8" spellcheck="false" aria-label="live embed server route"></textarea>
+      <div class="json-actions"><button type="button" class="button secondary small" id="copy-route">copy server route</button></div>
+      <p class="hint">save changes in linkbed to update this embed. discord caches previews for about 30 minutes, so existing messages may keep their preview.</p>
+      <div class="embed-ai">
+        <button type="button" class="button secondary small" id="copy-prompt">i am too lazy i want ai to do it for me <span aria-hidden="true">🤬</span></button>
+        <p class="hint">copy this prompt into your coding assistant.</p>
+      </div>
+    </div>
   </dialog>
   <dialog id="confirm-dialog" class="tool-dialog confirm-dialog" aria-labelledby="confirm-heading">
     <div class="card-titlebar"><h2>confirm action</h2></div>

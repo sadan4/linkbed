@@ -1,6 +1,6 @@
 import { normalizeCard, normalizeComponent, normalizeSlug, normalizeColor, normalizeReportLink, formatUrl, formatColor, formatSlug, text as validateText, buildEmbed, componentStats, payloadBytes, embedScript, httpsUrl, MAX_BYTES } from './model.mjs';
 import { createComposer, renderComponent, fieldValidator, autoFormatField } from './components.mjs';
-import { importCardJson, messageJson } from './interchange.mjs';
+import { importCardJson, messageJson, linkedEmbedCode } from './interchange.mjs';
 import { icon, mountIcons } from './icons.mjs';
 import Coloris from './vendor/coloris.mjs';
 
@@ -20,6 +20,7 @@ const fields = { url: $('#source-url'), title: $('#title'), description: $('#des
 let loading = false, jsonDirty = false, jsonEditor;
 const composer = createComposer($('#component-list'), () => { if (!loading) changed(); });
 let editing = null, dirty = false, slugEdited = false, showErrors = false;
+let restoring = true;
 let authenticated = false, newToken = '', busy = false, controls = [], refreshVersion = 0, toastTimer;
 let resumeEditor = false, authBusy = false;
 
@@ -81,6 +82,7 @@ function showView(view, focus = true) {
   if (focus) (view === 'cards' ? $('#cards-heading') : $('#editor-heading')).focus({ preventScroll: true });
   window.scrollTo(0, 0);
   syncHeaderVisibility();
+  saveEditor();
 }
 
 function setTab(tab) {
@@ -102,6 +104,7 @@ function setTab(tab) {
     if (mobile.matches) panel.setAttribute('role', 'tabpanel');
     else panel.removeAttribute('role');
   }
+  saveEditor();
 }
 for (const name of ['edit', 'preview']) $('#' + name + '-tab').addEventListener('click', () => setTab(name));
 $('.maker-tablist').addEventListener('keydown', event => {
@@ -162,6 +165,47 @@ function draft() {
   };
 }
 
+function saveEditor() {
+  if (restoring) return false;
+  try {
+    sessionStorage.setItem('linkbed-editor', JSON.stringify({
+      view: document.body.dataset.view, tab: mobileTab, scroll: scrollY,
+      embedMode: $('#embed-mode').value, showErrors,
+      draft: editing || dirty ? {
+        card: { ...draft(), title: fields.title.value, description: fields.description.value, url: fields.url.value },
+        slug: fields.slug.value, color: fields.color.value, editing, dirty, slugEdited,
+        json: jsonDirty ? $('#component-json').value : null,
+      } : null,
+    }));
+    return true;
+  } catch { return false; }
+}
+
+function restoreEditor() {
+  try {
+    const state = JSON.parse(sessionStorage.getItem('linkbed-editor'));
+    if (!state || location.hash === '#new') return null;
+    const saved = state.draft;
+    if (saved) {
+      if (!saved.card || saved.card.component?.type !== 17 || !Array.isArray(saved.card.component.components)
+        || !['url', 'title', 'description'].every(key => typeof saved.card[key] === 'string')
+        || typeof saved.slug !== 'string' || typeof saved.color !== 'string'
+        || (saved.editing !== null && typeof saved.editing !== 'string')) return null;
+      fill(saved.card, saved.slug);
+      fields.color.value = saved.color;
+      editing = saved.editing; dirty = !!saved.dirty; slugEdited = !!saved.slugEdited;
+      if (typeof saved.json === 'string') {
+        jsonDirty = true;
+        $('#component-json').value = saved.json;
+      }
+    }
+    showErrors = !!state.showErrors;
+    $('#embed-mode').value = state.embedMode === 'live' ? 'live' : 'snapshot';
+    update();
+    return state;
+  } catch { reset(false); return null; }
+}
+
 function update() {
   const card = draft();
   $('#delete-card').hidden = !editing;
@@ -182,8 +226,31 @@ function update() {
   const colorButton = fields.color.parentElement.querySelector('button');
   if (colorButton) colorButton.disabled = fields.color.disabled;
   fields.color.parentElement.style.color = fields.color.value;
-  $('#embed-code').value = embedScript(card);
-  $('#copy-code').disabled = busy || errors.some(({ input }) => !input || input.closest('#component-list')) || jsonDirty;
+  const live = $('#embed-mode').value === 'live';
+  let embedReady = !errors.some(({ input }) => !input || input.closest('#component-list')) && !jsonDirty;
+  $('#embed-code').value = live ? '' : embedScript(card);
+  $('#embed-code').rows = live ? 3 : 8;
+  $('#embed-hint').textContent = live ? 'paste into your page’s html head, then add the server route below.' : 'paste into your page’s html head. copy again after edits.';
+  if (live) {
+    embedReady = embedReady && !!editing && !dirty;
+    if (!editing) $('#embed-hint').textContent = 'publish your card first to create a live embed.';
+    else if (dirty || jsonDirty) $('#embed-hint').textContent = 'save your changes before using the live embed.';
+    if (embedReady) {
+      try {
+        const code = linkedEmbedCode(card.url, publicOrigin + '/api/embeds/' + editing);
+        $('#embed-code').value = code.head;
+        $('#embed-route').value = code.route;
+      } catch (error) {
+        embedReady = false;
+        $('#embed-hint').textContent = error.message;
+      }
+    }
+  }
+  $('#embed-code').hidden = live && !embedReady;
+  $('#embed-live').hidden = !live || !embedReady;
+  $('#copy-code').disabled = busy || !embedReady;
+  $('#copy-route').disabled = busy || !embedReady;
+  $('#copy-prompt').disabled = busy || !embedReady;
   if (!jsonDirty) {
     const value = JSON.stringify({ component: card.component }, null, 2);
     $('#component-json').value = value;
@@ -199,6 +266,7 @@ function update() {
     link.href = cardUrl(editing); link.target = '_blank'; link.rel = 'noopener noreferrer';
     notice.append(document.createTextNode('this card is published at '), link);
   }
+  saveEditor();
 }
 
 function validateEditor(card = draft()) {
@@ -341,19 +409,26 @@ async function reset(ask = true) {
   if (ask && (busy || (dirty && !await confirmAction('discard unsaved changes?', 'discard')))) return false;
   editing = null; dirty = false; slugEdited = false;
   $('#form-status').textContent = '';
-  fill({
+  const starter = $('#starter-card');
+  fill(starter ? JSON.parse(starter.textContent) : {
     url: 'https://ryanaque.com/', title: 'may 🦋', description: 'projects, notes, and things worth keeping.',
     component: {
       type: 17, accent_color: 0xa2abff, components: [
         {
           type: 9,
           components: [{ type: 10, content: "## hi! i'm may 🦋\ni'm a flexible software engineer. i love butterflies, designing, and writing." }],
-          accessory: { type: 11, media: { url: 'https://github.com/schmayterling.png' }, description: 'may’s profile picture' },
+          accessory: { type: 11, media: { url: 'https://i.pinimg.com/originals/d8/04/2d/d8042d88f4fee3f133e56a3a5cfde0e3.gif' }, description: 'funky' },
         },
         { type: 10, content: 'i make apps! here’s [pawl](https://pawl.cat), [hibi](https://hibi.garden), and [33](https://use33.app).' },
         { type: 1, components: [
-          { type: 2, style: 5, label: 'portfolio', url: 'https://ryanaque.com/', emoji: { name: '🦋' } },
-          { type: 2, style: 5, label: 'github', url: 'https://github.com/schmayterling', emoji: { name: '👩‍💻' } },
+          { type: 2, style: 5, label: 'portfolio', url: 'https://ryanaque.com/', emoji: { id: '1026533070955872337', name: 'blobcatcozy', animated: false } },
+          { type: 2, style: 5, label: 'github', url: 'https://github.com/schmayterling', emoji: { id: '1405656540303851520', name: 'github', animated: false } },
+        ] },
+        { type: 14, divider: true, spacing: 1 },
+        { type: 10, content: "this embed was made with my project [linkbed](https://linkbed.me), it's free and oss!\n" },
+        { type: 1, components: [
+          { type: 2, style: 5, label: 'make your own', url: 'https://linkbed.me/', emoji: { id: '1565589317508800543', name: 'beantype', animated: true } },
+          { type: 2, style: 5, label: 'star the repo', url: 'https://github.com/schmayterling/linkbed', emoji: { id: '775142708125106186', name: 'ShyWant', animated: true } },
         ] },
       ],
     },
@@ -490,6 +565,7 @@ $('#show-url-import').addEventListener('click', () => {
   $('#url-import-value').value = fields.url.value;
   $('#url-import-error').textContent = ''; $('#url-import-dialog').showModal();
 });
+$('#embed-mode').addEventListener('change', update);
 $('#show-embed').addEventListener('click', () => {
   if (busy) return;
   closeMenus(); $('#embed-dialog').showModal();
@@ -618,6 +694,18 @@ async function copy(text) {
 $('#copy-code').addEventListener('click', () => {
   try { normalizeComponent(composer.get()); copy($('#embed-code').value); } catch (error) { $('#form-status').textContent = error.message; validateEditor(); }
 });
+$('#copy-route').addEventListener('click', () => copy($('#embed-route').value));
+$('#copy-prompt').addEventListener('click', async () => {
+  const button = $('#copy-prompt');
+  button.disabled = true;
+  try {
+    const response = await fetch('/prompt.md');
+    if (!response.ok) throw new Error('prompt unavailable.');
+    const prompt = (await response.text()).replaceAll('https://linkbed.me/xxxx', cardUrl(editing));
+    await copy(prompt);
+  } catch { toast('could not load the prompt. try again.'); }
+  finally { update(); }
+});
 
 async function accountRequest(path, data = {}) {
   const errorNode = path === '/api/login' ? $('#sign-in-error') : $('#account-error');
@@ -731,7 +819,12 @@ $('#sign-out').addEventListener('click', async () => {
   if (result) { authenticated = false; reset(false); await refreshCards(); }
   finishAuth();
 });
-window.addEventListener('beforeunload', event => { if (dirty || newToken || authBusy) { event.preventDefault(); event.returnValue = ''; } });
+window.addEventListener('pagehide', saveEditor);
+document.addEventListener('visibilitychange', () => { if (document.hidden) saveEditor(); });
+window.addEventListener('beforeunload', event => {
+  const saved = saveEditor();
+  if ((dirty && !saved) || newToken || authBusy) { event.preventDefault(); event.returnValue = ''; }
+});
 
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
@@ -768,6 +861,14 @@ document.querySelectorAll('.preview-themes button').forEach(button => {
 
 mountIcons();
 syncNavigation();
-reset(false); setTab('edit'); showView(location.hash === '#cards' ? 'cards' : 'editor', false); syncAccount();
+reset(false);
+const restored = restoreEditor();
+setTab(restored?.tab === 'preview' ? 'preview' : 'edit');
+showView(location.hash === '#cards' || restored?.view === 'cards' ? 'cards' : 'editor', false);
+restoring = false;
+if (Number.isFinite(restored?.scroll)) window.scrollTo(0, restored.scroll);
+syncHeaderVisibility();
+saveEditor();
+syncAccount();
 document.body.dataset.ready = '';
 refreshCards();

@@ -1,6 +1,6 @@
 import { createHash, createHmac, randomBytes } from 'node:crypto';
 import { openDatabase } from './database.mjs';
-import { normalizeCard, normalizeSlug, normalizeReportLink, buildEmbed, componentUrls, payloadBytes, embedScript } from './public/model.mjs';
+import { normalizeCard, normalizeSlug, normalizeReportLink, buildEmbed, componentUrls, payloadBytes, embedScript, embedJson } from './public/model.mjs';
 import { fetchMetadata, publicUrl } from './metadata.mjs';
 import { renderCard, renderEditor } from './render.mjs';
 
@@ -140,15 +140,18 @@ export function createHandler(options = {}) {
       if (write && !['/api/reports', '/api/guest', '/api/signup', '/api/login', '/api/logout', '/api/import'].includes(path) && !path.startsWith('/api/cards') && !admin) throw fail(404, 'page not found.');
 
       if (path === '/' && ['GET', 'HEAD'].includes(req.method)) {
-        let card;
+        let card, starter;
         try {
           const db = await connect();
-          const result = await db.execute("SELECT card FROM cards WHERE slug = 'linkbed' AND NOT EXISTS (SELECT 1 FROM banned_slugs WHERE slug = cards.slug)");
-          if (result.rows.length) card = JSON.parse(result.rows[0].card);
+          const result = await db.execute("SELECT slug, card FROM cards WHERE slug IN ('linkbed', 'may') AND NOT EXISTS (SELECT 1 FROM banned_slugs WHERE slug = cards.slug)");
+          for (const row of result.rows) {
+            if (row.slug === 'linkbed') card = JSON.parse(row.card);
+            else starter = JSON.parse(row.card);
+          }
         } catch (error) {
           console.error('homepage embed unavailable:', error.code || error.name);
         }
-        const html = renderEditor(card, canonical + '/');
+        const html = renderEditor(card, canonical + '/', starter);
         res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache' });
         return res.end(req.method === 'HEAD' ? undefined : html);
       }
@@ -391,13 +394,15 @@ export function createHandler(options = {}) {
         return json(res, create ? 201 : 200, { slug, revision, url: `${canonical}/${slug}`, freshUrl: `${canonical}/${slug}?v=${revision}`, bytes: payloadBytes(card), script: embedScript(card) });
       }
       const publicPage = path.match(/^\/(?:p\/)?([a-z0-9-]+)$/);
-      if (publicPage && ['GET', 'HEAD'].includes(req.method)) {
-        const result = await db.execute({ sql: 'SELECT card FROM cards WHERE slug = ? AND NOT EXISTS (SELECT 1 FROM banned_slugs WHERE slug = cards.slug)', args: [publicPage[1]] });
+      const publicEmbed = path.match(/^\/api\/embeds\/([a-z0-9-]+)$/);
+      if ((publicPage || publicEmbed) && ['GET', 'HEAD'].includes(req.method)) {
+        const slug = (publicPage || publicEmbed)[1];
+        const result = await db.execute({ sql: 'SELECT card FROM cards WHERE slug = ? AND NOT EXISTS (SELECT 1 FROM banned_slugs WHERE slug = cards.slug)', args: [slug] });
         if (!result.rows.length) throw fail(404, 'card not found.');
-        const row = result.rows[0];
-        const html = renderCard(JSON.parse(row.card), `${canonical}/${publicPage[1]}`);
-        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=60' });
-        return res.end(req.method === 'HEAD' ? undefined : html);
+        const card = JSON.parse(result.rows[0].card);
+        const content = publicEmbed ? embedJson(card) : renderCard(card, `${canonical}/${slug}`);
+        res.writeHead(200, { 'content-type': publicEmbed ? 'application/json; charset=utf-8' : 'text/html; charset=utf-8', 'cache-control': publicEmbed ? 'no-store' : 'public, max-age=60' });
+        return res.end(req.method === 'HEAD' ? undefined : content);
       }
       throw fail(404, 'page not found.');
     } catch (error) {
