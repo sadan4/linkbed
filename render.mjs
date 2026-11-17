@@ -5,12 +5,12 @@ export const escapeHtml = value => String(value).replace(/[&<>"']/g, character =
 export function renderCard(card, url) {
   const e = escapeHtml;
   const imageUrls = card.images.filter(image => !/\.(mp4|webm|mov)(?:$|[?#])/i.test(image));
-  const images = imageUrls.map((image, index) => `<img src="${e(image)}" alt="${e(card.title)} — image ${index + 1}" referrerpolicy="no-referrer" loading="lazy">`).join('');
+  const images = imageUrls.map((image, index) => `<img src="${e(image)}" alt="${e(card.title)} | image ${index + 1}" referrerpolicy="no-referrer" loading="lazy">`).join('');
   const buttons = card.buttons.map(button => `<a class="button" href="${e(button.url)}" target="_blank" rel="noopener noreferrer">${e(button.label)} <span aria-hidden="true">↗</span></a>`).join('');
   return `<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${e(card.title)} · linkbed</title>
+<title>${e(card.title)} | linkbed</title>
 <meta name="description" content="${e(card.description)}">
 <meta property="og:title" content="${e(card.title)}">
 <meta property="og:description" content="${e(card.description)}">
