@@ -19,6 +19,8 @@ open http://localhost:3000. local sqlite data stays in `data/`, outside git. `np
 
 import this repo into vercel, like [pangram badge](https://github.com/schmayterling/pangram-badge). set the chrysalis libsql database url and auth token, then add `linkbed.ryana.dev` and `linkbed.me`. the short domain redirects to `linkbed.ryana.dev`. no framework or build setup. see [deployment instructions](docs/deployment.md).
 
+public terms and privacy pages are at `/terms` and `/privacy`. self-hosters should update their operator/contact details, providers, and retention wording to match their own deployment.
+
 ## features
 
 - public webpage metadata import

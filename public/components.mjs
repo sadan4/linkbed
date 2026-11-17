@@ -287,7 +287,7 @@ export function createComposer(container, onChange) {
   function changed() { onChange(copy(root)); }
   function focusHandle(items, index) {
     const parent = items === root.components ? container : container.querySelectorAll('.component-editor')[root.components.indexOf(blockForItems(items))];
-    const selector = items === root.components ? ':scope > .component-editor > summary > .drag-handle' : ':scope > .composer-item > .card-titlebar > .drag-handle';
+    const selector = items === root.components ? ':scope > .component-editor > .card-titlebar > .drag-handle' : ':scope > .component-body > .composer-item > .card-titlebar > .drag-handle';
     parent?.querySelectorAll(selector)[index]?.focus({ preventScroll: true });
   }
   function reorder(items, from, to, name) {
@@ -418,11 +418,25 @@ export function createComposer(container, onChange) {
     sortables.forEach(list => list.destroy()); sortables = []; validators = [];
     container.replaceChildren();
     root.components.forEach((block, index) => {
-      const shell = el('details', undefined, 'component-editor'); shell.open = !collapsed.has(block);
-      shell.addEventListener('toggle', () => { if (shell.open) collapsed.delete(block); else collapsed.add(block); });
-      const summary = el('summary', undefined, 'card-titlebar');
-      summary.append(dragHandle(root.components, index, names[block.type] + ' block', 'block'), el('span', names[block.type], 'block-title'));
-      shell.append(summary);
+      const shell = el('section', undefined, 'component-editor');
+      const heading = el('div', undefined, 'card-titlebar');
+      const content = el('div', undefined, 'component-body');
+      content.id = 'block-' + crypto.randomUUID();
+      const toggle = el('button', undefined, 'block-toggle'); toggle.type = 'button';
+      toggle.setAttribute('aria-controls', content.id);
+      toggle.append(el('span', names[block.type], 'block-title'), icon('chevron-down'));
+      const syncCollapsed = () => {
+        content.hidden = collapsed.has(block);
+        toggle.setAttribute('aria-expanded', String(!content.hidden));
+        shell.toggleAttribute('data-collapsed', content.hidden);
+      };
+      toggle.addEventListener('click', () => {
+        if (collapsed.has(block)) collapsed.delete(block); else collapsed.add(block);
+        syncCollapsed();
+      });
+      syncCollapsed();
+      heading.append(dragHandle(root.components, index, names[block.type] + ' block', 'block'), toggle);
+      shell.append(heading, content);
       const actions = el('span', undefined, 'block-actions');
       const up = action(actions, '↑', () => { [root.components[index - 1], root.components[index]] = [block, root.components[index - 1]]; }, 'move block up'); up.disabled = !index;
       const down = action(actions, '↓', () => { [root.components[index + 1], root.components[index]] = [block, root.components[index + 1]]; }, 'move block down'); down.disabled = index === root.components.length - 1;
@@ -430,23 +444,23 @@ export function createComposer(container, onChange) {
       duplicate.replaceChildren(icon('copy'));
       const remove = action(actions, 'remove', () => root.components.splice(index, 1), 'remove block');
       remove.replaceChildren(icon('trash-2'));
-      summary.append(actions, icon('chevron-down'));
-      if (block.type === 10) field(shell, 'markdown', block.content, value => { block.content = value; }, 'textarea');
+      heading.append(actions);
+      if (block.type === 10) field(content, 'markdown', block.content, value => { block.content = value; }, 'textarea');
       if (block.type === 1) {
-        block.components.forEach((item, i) => itemCard(shell, block.components, i, 'button', buttonFields));
-        const add = action(shell, '+ button', () => block.components.push({ type: 2, style: 5, label: '', url: '' })); add.disabled = block.components.length >= 5;
+        block.components.forEach((item, i) => itemCard(content, block.components, i, 'button', buttonFields));
+        const add = action(content, '+ button', () => block.components.push({ type: 2, style: 5, label: '', url: '' })); add.disabled = block.components.length >= 5;
       }
       if (block.type === 12) {
-        block.items.forEach((item, i) => itemCard(shell, block.items, i, 'media', mediaFields));
-        const add = action(shell, '+ image / video', () => block.items.push({ media: { url: '' } })); add.disabled = block.items.length >= 10;
+        block.items.forEach((item, i) => itemCard(content, block.items, i, 'media', mediaFields));
+        const add = action(content, '+ image / video', () => block.items.push({ media: { url: '' } })); add.disabled = block.items.length >= 10;
       }
       if (block.type === 9) {
         block.components.forEach((text, i) => {
-          field(shell, 'markdown ' + (i + 1), text.content, value => { text.content = value; }, 'textarea');
-          if (block.components.length > 1) action(shell, 'remove text', () => block.components.splice(i, 1));
+          field(content, 'markdown ' + (i + 1), text.content, value => { text.content = value; }, 'textarea');
+          if (block.components.length > 1) action(content, 'remove text', () => block.components.splice(i, 1));
         });
-        const add = action(shell, '+ text', () => block.components.push({ type: 10, content: '' })); add.disabled = block.components.length >= 3;
-        field(shell, 'accessory', block.accessory.type, value => {
+        const add = action(content, '+ text', () => block.components.push({ type: 10, content: '' })); add.disabled = block.components.length >= 3;
+        field(content, 'accessory', block.accessory.type, value => {
           block.accessory = Number(value) === 11 ? { type: 11, media: { url: '' } } : { type: 2, style: 5, label: 'open', url: '' }; draw();
         }, 'select', { choices: [[11, 'thumbnail'], [2, 'button']] });
         const sub = el('div', undefined, 'composer-item');
@@ -454,15 +468,15 @@ export function createComposer(container, onChange) {
         heading.append(el('span', block.accessory.type === 11 ? 'thumbnail' : 'button', 'composer-item-title'));
         sub.append(heading);
         if (block.accessory.type === 11) mediaFields(sub, block.accessory); else buttonFields(sub, block.accessory);
-        shell.append(sub);
+        content.append(sub);
       }
       if (block.type === 14) {
-        field(shell, 'show divider', block.divider !== false, value => { block.divider = value; }, 'checkbox');
-        field(shell, 'spacing', block.spacing || 1, value => { block.spacing = Number(value); }, 'select', { choices: [[1, 'small'], [2, 'large']] });
+        field(content, 'show divider', block.divider !== false, value => { block.divider = value; }, 'checkbox');
+        field(content, 'spacing', block.spacing || 1, value => { block.spacing = Number(value); }, 'select', { choices: [[1, 'small'], [2, 'large']] });
       }
       container.append(shell);
-      if (block.type === 1) sortable(shell, block.components, '> .composer-item', 'item', 'button');
-      if (block.type === 12) sortable(shell, block.items, '> .composer-item', 'item', 'media');
+      if (block.type === 1) sortable(content, block.components, '> .composer-item', 'item', 'button');
+      if (block.type === 12) sortable(content, block.items, '> .composer-item', 'item', 'media');
     });
     container.append(status);
     sortable(container, root.components, '> .component-editor', 'block', 'block');

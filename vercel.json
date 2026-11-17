@@ -18,6 +18,8 @@
     }
   ],
   "rewrites": [
+    { "source": "/terms", "destination": "/terms.html" },
+    { "source": "/privacy", "destination": "/privacy.html" },
     {
       "source": "/api/:path*",
       "destination": "/api/index?route=:path*"

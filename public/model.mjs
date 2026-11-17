@@ -103,7 +103,7 @@ export function normalizeColor(value) {
 }
 
 export function normalizeSlug(value) {
-  if (typeof value !== 'string' || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value) || value.length > 60 || ['api', 'healthz', 'admin'].includes(value)) {
+  if (typeof value !== 'string' || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value) || value.length > 60 || ['api', 'healthz', 'admin', 'terms', 'privacy'].includes(value)) {
     throw new ValidationError('use 1–60 lowercase letters, numbers, and single hyphens for the link.');
   }
   return value;

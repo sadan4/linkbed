@@ -108,9 +108,16 @@
   missingUrl.dispatchEvent(new Event('blur'));
   check(missingUrl.value === 'https://example.com/image.png' && composer.validate().length === 0, 'nested URL autoformat updates model and clears error');
   const handle = fields.querySelector('.block-handle');
-  const details = handle.closest('details');
+  const block = handle.closest('.component-editor');
+  const toggle = block.querySelector('.block-toggle');
+  const body = block.querySelector('.component-body');
   handle.click();
-  check(details.open, 'handle click does not collapse block');
+  check(!body.hidden, 'handle click does not collapse block');
+  check(!fields.querySelector('summary button, summary input, summary select, summary a'), 'no interactive controls inside summaries');
+  toggle.click();
+  check(body.hidden && toggle.getAttribute('aria-expanded') === 'false', 'block collapses accessibly');
+  toggle.click();
+  check(!body.hidden && toggle.getAttribute('aria-expanded') === 'true', 'block expands accessibly');
   fields.remove();
 
   check(document.querySelector('#make-card').matches('a[href="#new"]') && document.querySelector('#show-cards').matches('a[href="#cards"]'), 'navigation uses links');
@@ -127,5 +134,5 @@
   check(!header.inert && !header.classList.contains('is-hidden'), 'navigation returns at exact top');
   spacer.remove();
   scrollTo(0, position); window.dispatchEvent(new Event('scroll'));
-  return { passed: 42 };
+  return { passed: 45 };
 })()

@@ -17,7 +17,7 @@ test('report links accept only card paths on this site and reserve admin', () =>
   for (const url of ['https://example.com/hello', 'https://linkbed.me.evil.com/hello', 'https://name:pass@linkbed.me/hello', 'https://linkbed.me:444/hello', 'javascript:alert(1)', 'https://linkbed.me/api/cards', 'https://linkbed.me/admin', 'https://linkbed.me/p/admin', 'https://linkbed.me/a--b', 'https://linkbed.me/%61dmin']) {
     assert.throws(() => normalizeReportLink(url, origin), undefined, url);
   }
-  assert.throws(() => normalizeSlug('admin'));
+  for (const slug of ['admin', 'terms', 'privacy']) assert.throws(() => normalizeSlug(slug));
 });
 
 test('admin boundary rejects spoofed hosts, proxies, remote clients and non-local listeners', () => {

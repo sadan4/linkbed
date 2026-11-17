@@ -217,7 +217,10 @@ function validateEditor(card = draft()) {
       link.href = '#' + input.id;
       link.addEventListener('click', event => {
         event.preventDefault(); setTab('edit');
-        for (let parent = input.parentElement; parent; parent = parent.parentElement) if (parent.tagName === 'DETAILS') parent.open = true;
+        for (let parent = input.parentElement; parent; parent = parent.parentElement) {
+          if (parent.tagName === 'DETAILS') parent.open = true;
+          if (parent.matches('.component-editor[data-collapsed]')) parent.querySelector('.block-toggle').click();
+        }
         input.focus({ preventScroll: true }); input.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
       });
     }
@@ -736,4 +739,6 @@ document.querySelectorAll('.preview-themes button').forEach(button => {
 
 mountIcons();
 syncNavigation();
-reset(false); setTab('edit'); showView(location.hash === '#cards' ? 'cards' : 'editor', false); syncAccount(); refreshCards();
+reset(false); setTab('edit'); showView(location.hash === '#cards' ? 'cards' : 'editor', false); syncAccount();
+document.body.dataset.ready = '';
+refreshCards();
