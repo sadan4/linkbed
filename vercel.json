@@ -10,14 +10,6 @@
       "includeFiles": "editor.html"
     }
   },
-  "redirects": [
-    {
-      "source": "/:path*",
-      "has": [{ "type": "host", "value": "linkbed.me" }],
-      "destination": "https://linkbed.ryana.dev/:path*",
-      "permanent": true
-    }
-  ],
   "rewrites": [
     { "source": "/", "destination": "/api/index?home=1" },
     { "source": "/terms", "destination": "/terms.html" },

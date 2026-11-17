@@ -41,7 +41,9 @@ const fieldChecks = [
 for (const input of [fields.url, $('#url-import-value')]) autoFormatField(input, formatUrl);
 autoFormatField(fields.color, formatColor);
 autoFormatField(fields.slug, formatSlug);
-const cardUrl = slug => location.origin + '/' + slug;
+const publicOrigin = new URL($('meta[property="og:url"]')?.content || location.origin).origin;
+const publicHost = new URL(publicOrigin).host;
+const cardUrl = slug => publicOrigin + '/' + slug;
 
 function element(tag, text, className) {
   const node = document.createElement(tag);
@@ -167,8 +169,8 @@ function update() {
   const stats = componentStats(card.component);
   $('#component-count').textContent = stats.components + ' / 40 · ' + stats.media + ' / 10 media';
   $('#add-component').disabled = busy || stats.components >= 40;
-  $('#preview-url').textContent = location.host + '/' + (fields.slug.value || 'your-card');
-  $('#slug-prefix').textContent = location.host + '/';
+  $('#preview-url').textContent = publicHost + '/' + (fields.slug.value || 'your-card');
+  $('#slug-prefix').textContent = publicHost + '/';
   $('#slug-hint').textContent = editing && fields.slug.value !== editing ? 'old link stops working after save.' : '';
   const bytes = payloadBytes(card);
   $('#byte-count').textContent = bytes.toLocaleString() + ' / 3,000 bytes';

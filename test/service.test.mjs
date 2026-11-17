@@ -53,6 +53,7 @@ test('homepage follows the saved linkbed card without rebuilding and survives a 
     assert.deepEqual(payload(html), JSON.parse(embedJson(value)));
     assert.match(html, /property="og:title" content="latest &lt;title&gt;"/);
     assert.match(html, /property="og:url" content="https:\/\/cards.example.com\/"/);
+    assert.match(html, /id="slug-prefix">cards.example.com\//);
     assert.match(html, /copy &quot; &amp; &lt;\/script&gt;/);
     assert.ok(!html.includes('content="copy "'));
     assert.equal((await fetch(base, { method: 'HEAD' })).status, 200);

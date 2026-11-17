@@ -57,7 +57,7 @@ env_file = Path('/root/lembed-secrets/.env')
 if not env_file.exists():
     from urllib.parse import urlsplit
     database_url = os.environ.get('DATABASE_URL', 'https://lembed-db.ryana.dev')
-    public_origin = os.environ.get('PUBLIC_ORIGIN', 'https://linkbed.ryana.dev')
+    public_origin = os.environ.get('PUBLIC_ORIGIN', 'https://linkbed.me')
     for value in [database_url, public_origin]:
         if urlsplit(value).scheme not in ['http', 'https'] or any(char in value for char in '\r\n"'):
             raise SystemExit('invalid deployment url')

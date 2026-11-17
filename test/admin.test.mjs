@@ -14,6 +14,7 @@ test('report links accept only card paths on this site and reserve admin', () =>
   const origin = 'http://localhost:3000';
   assert.deepEqual(normalizeReportLink('linkbed.me/p/hello?v=3#preview', origin), { slug: 'hello', url: 'https://linkbed.me/hello' });
   assert.equal(normalizeReportLink(origin + '/hello', origin).slug, 'hello');
+  assert.equal(normalizeReportLink('https://www.linkbed.me/hello', origin).slug, 'hello');
   for (const url of ['https://example.com/hello', 'https://linkbed.me.evil.com/hello', 'https://name:pass@linkbed.me/hello', 'https://linkbed.me:444/hello', 'javascript:alert(1)', 'https://linkbed.me/api/cards', 'https://linkbed.me/admin', 'https://linkbed.me/p/admin', 'https://linkbed.me/a--b', 'https://linkbed.me/%61dmin']) {
     assert.throws(() => normalizeReportLink(url, origin), undefined, url);
   }

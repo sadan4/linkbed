@@ -119,7 +119,7 @@ export function normalizeReportLink(value, origin) {
   if (typeof value !== 'string' || value.length > 2048) throw new ValidationError('enter a valid linkbed link.');
   let url;
   try { url = new URL(formatUrl(value)); } catch { throw new ValidationError('enter a valid linkbed link.'); }
-  const origins = [new URL(origin).origin, 'https://linkbed.me', 'https://linkbed.ryana.dev'];
+  const origins = [new URL(origin).origin, 'https://linkbed.me', 'https://www.linkbed.me', 'https://linkbed.ryana.dev'];
   if (url.username || url.password || !origins.includes(url.origin)) throw new ValidationError('enter a link from this site.');
   const match = url.pathname.match(/^\/(?:p\/)?([a-z0-9-]+)\/?$/);
   if (!match) throw new ValidationError('enter a link to a card.');

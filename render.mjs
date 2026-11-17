@@ -17,7 +17,8 @@ ${image ? `<meta property="og:image" content="${e(image)}">` : ''}
 ${card?.color ? `<meta name="theme-color" content="${e(card.color)}">` : ''}
 ${card ? embedScript(card) : ''}`;
   return readFileSync(fileURLToPath(new URL('./editor.html', import.meta.url)), 'utf8')
-    .replace('<!-- card metadata -->', () => metadata);
+    .replace('<!-- card metadata -->', () => metadata)
+    .replaceAll('<!-- public host -->', e(new URL(url).host));
 }
 
 export function renderCard(card, url) {
