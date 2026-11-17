@@ -33,15 +33,6 @@ markdown.inline.ruler.before('text', 'discord_format', (state, silent) => {
 });
 markdown.renderer.rules.discord_underline = (tokens, index) => '<u>' + markdown.renderInline(tokens[index].content) + '</u>';
 markdown.renderer.rules.discord_spoiler = (tokens, index) => '<button type="button" class="text-spoiler" aria-label="reveal spoiler">' + markdown.renderInline(tokens[index].content) + '</button>';
-markdown.core.ruler.before('inline', 'discord_subtext', state => {
-  for (let i = 1; i < state.tokens.length; i++) {
-    const token = state.tokens[i];
-    if (token.type === 'inline' && state.tokens[i - 1].type === 'paragraph_open' && token.content.startsWith('-# ')) {
-      state.tokens[i - 1].attrSet('class', 'discord-subtext');
-      token.content = token.content.slice(3);
-    }
-  }
-});
 markdown.validateLink = url => {
   try { return ['http:', 'https:'].includes(new URL(url).protocol); } catch { return false; }
 };
@@ -224,7 +215,7 @@ function markdownToolbar(input) {
     button.addEventListener('click', () => wrap(format)); toolbar.append(button);
   }
   const blocks = el('select'); blocks.setAttribute('aria-label', 'text block format');
-  for (const [value, name] of [['', 'text'], ['# ', 'heading 1'], ['## ', 'heading 2'], ['### ', 'heading 3'], ['-# ', 'subtext'], ['> ', 'quote'], ['- ', 'bullet list'], ['1. ', 'numbered list']]) {
+  for (const [value, name] of [['', 'text'], ['# ', 'heading 1'], ['## ', 'heading 2'], ['### ', 'heading 3'], ['> ', 'quote'], ['- ', 'bullet list'], ['1. ', 'numbered list']]) {
     const option = el('option', name); option.value = value; blocks.append(option);
   }
   blocks.addEventListener('change', () => {

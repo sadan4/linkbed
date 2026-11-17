@@ -5,7 +5,8 @@
   const text = textPreview('# heading\n**bold** __underline__ ~~strike~~ ||**hidden**||\n\n-# footer\n\n<t:1700000000> <t:1700000000:S> <t:bad> <a:bad> <script>alert(1)</script> [bad](javascript:alert(1))');
   check(text.querySelector('h1') && text.querySelector('strong') && text.querySelector('u') && text.querySelector('s'), 'markdown');
   check(text.querySelectorAll('time').length === 2, 'timestamps');
-  check(text.querySelector('.discord-subtext'), 'subtext');
+  check(!text.querySelector('.discord-subtext') && text.textContent.includes('-# footer'), 'subtext stays literal like Discord component embeds');
+  check(textPreview('body\n-# **footer**').querySelector('strong')?.textContent === 'footer', 'literal subtext retains inline formatting');
   check(!text.querySelector('script, a[href^="javascript:"]'), 'safe html');
   text.querySelector('.text-spoiler').click();
   check(text.querySelector('.text-spoiler.revealed'), 'text spoiler');
@@ -89,8 +90,10 @@
   markdownInput.setSelectionRange(0, 5);
   toolbar.querySelector('[aria-label="spoiler"]').click();
   check(textPreview(markdownInput.value).querySelector('.text-spoiler'), 'toolbar inserts Discord spoiler');
-  const blockFormat = toolbar.querySelector('select'); blockFormat.value = '-# '; blockFormat.dispatchEvent(new Event('change'));
-  check(markdownInput.value.startsWith('-# ') && textPreview(markdownInput.value).querySelector('.discord-subtext'), 'toolbar supports Discord subtext');
+  const blockFormat = toolbar.querySelector('select');
+  check(!blockFormat.querySelector('option[value="-# "]'), 'toolbar does not offer unsupported subtext');
+  blockFormat.value = '## '; blockFormat.dispatchEvent(new Event('change'));
+  check(markdownInput.value.startsWith('## ') && textPreview(markdownInput.value).querySelector('h2'), 'toolbar supports headings');
   composer.add(10);
   let issues = composer.validate(false);
   check(issues.length === 1 && issues[0].input.getAttribute('aria-invalid') === 'false', 'initial component error stays hidden');
@@ -146,5 +149,5 @@
   check(!header.inert && !header.classList.contains('is-hidden'), 'navigation returns at exact top');
   spacer.remove();
   scrollTo(0, position); window.dispatchEvent(new Event('scroll'));
-  return { passed: 49 };
+  return { passed: 51 };
 })()

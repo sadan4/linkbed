@@ -678,7 +678,6 @@ label.check-field { justify-content: space-between; }
 .component-text blockquote { margin: 8px 0; padding-left: 12px; border-left: 3px solid var(--discord-muted, oklch(0.48 0.01 270)); color: var(--discord-text, oklch(0.83 0.005 270)); }
 .component-text pre { white-space: pre-wrap; overflow-wrap: anywhere; background: var(--discord-code, oklch(0.16 0.005 270)); padding: 10px; border: 1px solid var(--discord-border, oklch(0.12 0.005 270)); border-radius: 4px; font-size: max(var(--text-min), 0.75rem); }
 .component-text pre code { background: none; padding: 0; }
-.component-text .discord-subtext { color: var(--discord-muted, oklch(0.72 0.005 270)); font-size: max(var(--text-min), 0.75rem); }
 .component-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .component-section { display: flex; align-items: start; justify-content: space-between; gap: 16px; }
 .component-section > div:first-child { flex: 1; min-width: 0; }
