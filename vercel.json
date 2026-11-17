@@ -9,6 +9,14 @@
       "maxDuration": 15
     }
   },
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "linkbed.me" }],
+      "destination": "https://linkbed.ryana.dev/:path*",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/:path*",
@@ -21,6 +29,10 @@
     {
       "source": "/healthz",
       "destination": "/api/index?health=1"
+    },
+    {
+      "source": "/:slug([a-z0-9-]+)",
+      "destination": "/api/index?card=:slug"
     }
   ],
   "headers": [
@@ -41,7 +53,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
+          "value": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https: http:; media-src 'self' https: http:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
         }
       ]
     }

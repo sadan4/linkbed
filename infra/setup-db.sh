@@ -51,7 +51,18 @@ header = encode(json.dumps({'alg':'EdDSA','typ':'JWT'},separators=(',',':')).enc
 payload = encode(json.dumps({'id':'default','a':'rw'},separators=(',',':')).encode())
 message = header + b'.' + payload
 token = message + b'.' + encode(key.sign(message))
-Path('/root/lembed-secrets/db-auth-token').write_bytes(token + b'\n')
+token_file = Path('/root/lembed-secrets/db-auth-token')
+token_file.write_bytes(token + b'\n')
+env_file = Path('/root/lembed-secrets/.env')
+if not env_file.exists():
+    from urllib.parse import urlsplit
+    database_url = os.environ.get('DATABASE_URL', 'https://lembed-db.ryana.dev')
+    public_origin = os.environ.get('PUBLIC_ORIGIN', 'https://linkbed.ryana.dev')
+    for value in [database_url, public_origin]:
+        if urlsplit(value).scheme not in ['http', 'https'] or any(char in value for char in '\r\n"'):
+            raise SystemExit('invalid deployment url')
+    env_file.write_text('DATABASE_URL="' + database_url + '"\nDATABASE_AUTH_TOKEN="' + token.decode() + '"\nPUBLIC_ORIGIN="' + public_origin + '"\n')
+    env_file.chmod(0o600)
 PY
 chown root:sqld /etc/sqld/jwt-public.pem
 chmod 640 /etc/sqld/jwt-public.pem

@@ -1,20 +1,47 @@
-import { normalizeCard, payloadBytes, embedScript, httpsUrl, MAX_BYTES } from './model.mjs';
+import { normalizeCard, normalizeComponent, normalizeSlug, normalizeColor, normalizeReportLink, formatUrl, formatColor, formatSlug, text as validateText, buildEmbed, componentStats, payloadBytes, embedScript, httpsUrl, MAX_BYTES } from './model.mjs';
+import { createComposer, renderComponent, fieldValidator, autoFormatField } from './components.mjs';
+import { importCardJson, messageJson } from './interchange.mjs';
+import { icon, mountIcons } from './icons.mjs';
+import Coloris from './vendor/coloris.mjs';
 
 const $ = selector => document.querySelector(selector);
-const fields = { url: $('#source-url'), title: $('#title'), description: $('#description'), color: $('#color'), images: $('#images'), slug: $('#slug') };
-let editing = null;
-let published = null;
-let saved = [];
-let dirty = false;
-let slugEdited = false;
-let pending = false;
-let lockedControls = [];
-let toastTimer;
-let authenticated = false;
-let newToken = '';
-let authBusy = false;
-let authControls = [];
-let refreshVersion = 0;
+const siteHeader = $('.site-header');
+const siteNav = $('#site-nav'), navToggle = $('#nav-toggle');
+function syncHeaderVisibility() {
+  const hidden = window.scrollY > 0;
+  if (siteHeader.inert === hidden) return;
+  siteHeader.classList.toggle('is-hidden', hidden);
+  siteHeader.inert = hidden;
+}
+new ResizeObserver(([entry]) => {
+  document.documentElement.style.setProperty('--toolbar-height', entry.target.getBoundingClientRect().height + 'px');
+}).observe($('.editor-toolbar'));
+const fields = { url: $('#source-url'), title: $('#title'), description: $('#description'), color: $('#color'), slug: $('#slug') };
+let loading = false, jsonDirty = false, jsonEditor;
+const composer = createComposer($('#component-list'), () => { if (!loading) changed(); });
+let editing = null, dirty = false, slugEdited = false, showErrors = false;
+let authenticated = false, newToken = '', busy = false, controls = [], refreshVersion = 0, toastTimer;
+let resumeEditor = false, authBusy = false;
+
+const mobile = matchMedia('(max-width: 760px)');
+let mobileTab = 'edit';
+Coloris.init();
+Coloris({
+  el: '#color', format: 'hex', alpha: false, themeMode: 'auto', margin: 8,
+  swatches: ['#5865f2', '#e85d9e', '#22c55e', '#f59e0b', '#ef4444', '#06b6d4', '#8b5cf6', '#ffffff'],
+  closeButton: true, closeLabel: 'done', a11y: { open: 'choose accent color', close: 'close color picker' },
+});
+const fieldChecks = [
+  fieldValidator(fields.url, value => httpsUrl(value.trim(), 'destination url'), 'destination url'),
+  fieldValidator(fields.title, value => validateText(value, 'card name', 256, true), 'card name'),
+  fieldValidator(fields.slug, normalizeSlug, 'custom link'),
+  fieldValidator(fields.description, value => validateText(value, 'fallback description', 4096), 'fallback description'),
+  fieldValidator(fields.color, value => normalizeColor($('#no-accent').checked ? null : value), 'accent color'),
+];
+for (const input of [fields.url, $('#url-import-value')]) autoFormatField(input, formatUrl);
+autoFormatField(fields.color, formatColor);
+autoFormatField(fields.slug, formatSlug);
+const cardUrl = slug => location.origin + '/' + slug;
 
 function element(tag, text, className) {
   const node = document.createElement(tag);
@@ -27,407 +54,686 @@ function toast(message) {
   $('#toast').textContent = message;
   $('#toast').hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { $('#toast').hidden = true; }, 2800);
+  toastTimer = setTimeout(() => { $('#toast').hidden = true; }, 2400);
+}
+
+function confirmAction(message, label = 'continue') {
+  const dialog = $('#confirm-dialog');
+  if (busy || dialog.open) return Promise.resolve(false);
+  $('#confirm-heading').textContent = message;
+  $('#confirm-action').textContent = label;
+  dialog.returnValue = 'cancel';
+  return new Promise(resolve => {
+    dialog.addEventListener('close', () => resolve(dialog.returnValue === 'confirm'), { once: true });
+    dialog.showModal();
+  });
+}
+
+function showView(view, focus = true) {
+  if (busy) return;
+  document.body.dataset.view = view;
+  history.replaceState(null, '', view === 'cards' ? '#cards' : location.pathname + location.search);
+  $('#cards-view').hidden = view !== 'cards';
+  $('#editor-view').hidden = view !== 'editor';
+  $('#show-cards').setAttribute('aria-current', view === 'cards' ? 'page' : 'false');
+  if (focus) (view === 'cards' ? $('#cards-heading') : $('#editor-heading')).focus({ preventScroll: true });
+  window.scrollTo(0, 0);
+  syncHeaderVisibility();
+}
+
+function setTab(tab) {
+  mobileTab = tab;
+  const target = mobile.matches ? $('#mobile-actions-menu') : $('.toolbar-actions');
+  if ($('#edit-json').parentElement !== target) {
+    closeMenus();
+    if (mobile.matches) target.append($('#edit-json'), $('#export-toggle'), $('#show-embed'));
+    else target.prepend($('#edit-json'), $('#export-toggle'), $('#show-embed'));
+  }
+  for (const name of ['edit', 'preview']) {
+    const button = $('#' + name + '-tab');
+    button.setAttribute('aria-selected', String(tab === name));
+    button.tabIndex = tab === name ? 0 : -1;
+  }
+  $('#card-form').hidden = mobile.matches && tab !== 'edit';
+  $('#live-preview').hidden = mobile.matches && tab !== 'preview';
+  for (const panel of [$('#card-form'), $('#live-preview')]) {
+    if (mobile.matches) panel.setAttribute('role', 'tabpanel');
+    else panel.removeAttribute('role');
+  }
+}
+for (const name of ['edit', 'preview']) $('#' + name + '-tab').addEventListener('click', () => setTab(name));
+$('.maker-tablist').addEventListener('keydown', event => {
+  if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+    event.preventDefault();
+    const tab = event.key === 'Home' ? 'edit' : event.key === 'End' ? 'preview' : mobileTab === 'edit' ? 'preview' : 'edit';
+    setTab(tab);
+    $('#' + tab + '-tab').focus();
+  }
+});
+function syncNavigation() {
+  closeMenus();
+  if (mobile.matches) siteNav.setAttribute('popover', 'auto');
+  else siteNav.removeAttribute('popover');
+}
+siteNav.addEventListener('beforetoggle', event => {
+  const open = event.newState === 'open';
+  navToggle.setAttribute('aria-expanded', String(open));
+  navToggle.setAttribute('aria-label', open ? 'close navigation' : 'open navigation');
+  if (!open) return;
+  const rect = navToggle.getBoundingClientRect();
+  siteNav.style.left = Math.max(12, Math.min(rect.right - 220, innerWidth - 232)) + 'px';
+  siteNav.style.top = rect.bottom + 8 + 'px';
+});
+siteNav.addEventListener('click', event => { if (event.target.closest('a, button')) closeMenus(); });
+mobile.addEventListener('change', () => { setTab(mobileTab); syncNavigation(); });
+
+function setBusy(value) {
+  busy = value;
+  $('#card-form').inert = value;
+  if (value) {
+    Coloris.close();
+    controls = [...document.querySelectorAll('input, textarea, button, select')].map(control => [control, control.disabled]);
+    controls.forEach(([control]) => { control.disabled = true; });
+  } else {
+    controls.forEach(([control, disabled]) => { control.disabled = disabled; });
+    fields.slug.disabled = false;
+    update();
+  }
+  $('#json-panel').inert = value;
+  $('#account-panel').setAttribute('aria-busy', String(value));
+  $('#sign-in-dialog').setAttribute('aria-busy', String(value));
+  $('#report-dialog').setAttribute('aria-busy', String(value));
+  $('#account-new-token').setAttribute('aria-busy', String(value));
+  $('#card-form').setAttribute('aria-busy', String(value));
 }
 
 function slugify(value) {
-  return value.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60).replace(/-$/, '');
-}
-
-function addButton(button = { label: '', url: '' }) {
-  const index = $('#button-list').children.length;
-  const row = element('div', undefined, 'button-row');
-  const label = element('label', 'button text');
-  const input = element('input', undefined, 'button-label-input');
-  input.id = 'button-label-' + index + '-' + Date.now();
-  label.htmlFor = input.id;
-  input.maxLength = 80;
-  input.required = true;
-  input.placeholder = 'take a look';
-  input.value = button.label;
-  const urlLabel = element('label', 'destination', 'url-label');
-  const url = element('input', undefined, 'button-url-input');
-  url.id = input.id + '-url';
-  urlLabel.htmlFor = url.id;
-  url.type = 'url';
-  url.maxLength = 512;
-  url.required = true;
-  url.placeholder = 'https://example.com';
-  url.value = button.url;
-  const remove = element('button', '×', 'remove-button');
-  remove.type = 'button';
-  remove.setAttribute('aria-label', 'remove button ' + (index + 1));
-  remove.addEventListener('click', () => { row.remove(); changed(); });
-  row.append(label, input, urlLabel, url, remove);
-  $('#button-list').append(row);
+  return formatSlug(value);
 }
 
 function draft() {
   return {
-    title: fields.title.value.trim(),
-    description: fields.description.value.trim(),
-    url: fields.url.value.trim(),
-    color: fields.color.value,
-    images: fields.images.value.split('\n').map(value => value.trim()).filter(Boolean),
-    buttons: [...document.querySelectorAll('.button-row')].map(row => ({
-      label: row.querySelector('.button-label-input').value.trim(),
-      url: row.querySelector('.button-url-input').value.trim(),
-    })),
+    title: fields.title.value.trim(), description: fields.description.value.trim(),
+    url: fields.url.value.trim(), color: $('#no-accent').checked ? null : fields.color.value,
+    component: composer.get(),
   };
-}
-
-function previewMarkdown(text) {
-  const fragment = document.createDocumentFragment();
-  // small preview subset; the actual embed is rendered by discord.
-  for (const part of text.split(/(\*\*[^*]+\*\*)/g)) {
-    if (part.startsWith('**') && part.endsWith('**')) fragment.append(element('strong', part.slice(2, -2)));
-    else fragment.append(document.createTextNode(part));
-  }
-  return fragment;
 }
 
 function update() {
   const card = draft();
-  $('#title-count').textContent = card.title.length + ' / 100';
-  $('#button-count').textContent = card.buttons.length + ' / 5';
-  $('#image-count').textContent = card.images.length + ' / 10';
-  $('#add-button').disabled = pending || card.buttons.length >= 5;
-  $('#preview-title').textContent = card.title || 'your next good thing.';
-  $('#preview-description').replaceChildren(previewMarkdown(card.description || 'a launch, a project, an open invitation.\ngive it a title. let the card do the talking.'));
-  $('#preview-url').textContent = location.host + '/p/' + (fields.slug.value || 'your-next-thing');
-  $('#preview-card').style.borderColor = card.color;
-  const buttons = card.buttons;
-  $('#preview-buttons').replaceChildren(...buttons.map(button => {
-    let url;
-    try { url = httpsUrl(button.url); } catch {}
-    const node = element(url ? 'a' : 'span', button.label || 'your button', 'preview-button');
-    if (url) { node.href = url; node.target = '_blank'; node.rel = 'noopener noreferrer'; }
-    node.append(element('span', '↗'));
-    return node;
-  }));
-  const gallery = $('#preview-gallery');
-  gallery.hidden = !card.images.length;
-  gallery.replaceChildren(...card.images.slice(0, 10).map(url => {
-    const img = element('img');
-    img.alt = card.title ? card.title + ' preview image' : 'card preview image';
-    img.referrerPolicy = 'no-referrer';
-    img.loading = 'lazy';
-    try { img.src = httpsUrl(url, 'image url'); } catch {
-      return element('div', 'enter a public https image url', 'broken-image');
-    }
-    img.addEventListener('error', () => img.replaceWith(element('div', 'image could not load — check its url', 'broken-image')), { once: true });
-    return img;
-  }));
+  $('#delete-card').hidden = !editing;
+  renderComponent($('#preview-card'), card.component);
+  const stats = componentStats(card.component);
+  $('#component-count').textContent = stats.components + ' / 40 · ' + stats.media + ' / 10 media';
+  $('#add-component').disabled = busy || stats.components >= 40;
+  $('#preview-url').textContent = location.host + '/' + (fields.slug.value || 'your-card');
+  $('#slug-prefix').textContent = location.host + '/';
+  $('#slug-hint').textContent = editing && fields.slug.value !== editing ? 'old link stops working after save.' : '';
   const bytes = payloadBytes(card);
   $('#byte-count').textContent = bytes.toLocaleString() + ' / 3,000 bytes';
   $('#byte-count').classList.toggle('over-limit', bytes > MAX_BYTES);
-  $('#preview-warning').textContent = bytes > MAX_BYTES ? 'too much for one card. shorten text or remove links and images.' : '';
-  $('#publish-button').disabled = pending || bytes > MAX_BYTES;
-  $('#publish-button').firstChild.textContent = editing ? 'publish changes ' : 'publish card ';
-  document.querySelectorAll('[data-color]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.color === card.color)));
+  const errors = validateEditor(card);
+  $('#publish-button').disabled = busy || jsonDirty;
+  if (!busy) $('#publish-label').textContent = editing ? 'save changes' : 'publish';
+  fields.color.disabled = busy || $('#no-accent').checked;
+  const colorButton = fields.color.parentElement.querySelector('button');
+  if (colorButton) colorButton.disabled = fields.color.disabled;
+  fields.color.parentElement.style.color = fields.color.value;
   $('#embed-code').value = embedScript(card);
-  $('#copy-code').disabled = !card.title || !card.url || bytes > MAX_BYTES;
-  $('#publish-result').hidden = !published || dirty;
-}
-
-function setPending(value) {
-  pending = value;
-  if (value) {
-    lockedControls = [...document.querySelectorAll('#card-form input, #card-form textarea, #card-form button, #reset, #saved-list button, #account-button')].map(control => [control, control.disabled]);
-    lockedControls.forEach(([control]) => { control.disabled = true; });
-    $('#card-form').setAttribute('aria-busy', 'true');
-  } else {
-    lockedControls.forEach(([control, disabled]) => { control.disabled = disabled; });
-    fields.slug.disabled = !!editing;
-    $('#card-form').removeAttribute('aria-busy');
-    update();
+  $('#copy-code').disabled = busy || errors.some(({ input }) => !input || input.closest('#component-list')) || jsonDirty;
+  if (!jsonDirty) {
+    const value = JSON.stringify({ component: card.component }, null, 2);
+    $('#component-json').value = value;
+    jsonEditor?.set(value);
+  }
+  $('#editor-notice').hidden = !editing && !dirty;
+  $('#editor-notice').classList.toggle('has-changes', dirty);
+  const notice = $('#editor-notice-text');
+  notice.replaceChildren();
+  if (dirty) notice.append(document.createTextNode('you have unsaved changes' + (editing ? '. ' : '. publish to save your card.')));
+  if (editing) {
+    const link = element('a', cardUrl(editing));
+    link.href = cardUrl(editing); link.target = '_blank'; link.rel = 'noopener noreferrer';
+    notice.append(document.createTextNode('this card is published at '), link);
   }
 }
 
-function changed() {
-  dirty = true;
-  $('#form-status').textContent = '';
+function validateEditor(card = draft()) {
+  const componentErrors = composer.validate(showErrors);
+  const errors = [...fieldChecks.map(check => check(showErrors)).filter(Boolean), ...componentErrors];
+  if (!componentErrors.length) {
+    try { normalizeComponent(card.component); } catch (invalid) { errors.push({ message: invalid.message }); }
+  }
+  const stats = componentStats(card.component);
+  for (const [invalid, message] of [[stats.components > 40, 'use up to 40 components.'], [stats.media > 10, 'use up to ten gallery items across the embed.'], [payloadBytes(card) > MAX_BYTES, 'card exceeds discord’s 3,000-byte limit. shorten text or remove a link or image.']]) {
+    if (invalid && !errors.some(error => error.message === message)) errors.push({ message });
+  }
+  if (jsonDirty) errors.push({ message: 'apply json before publishing.' });
+  const visibleErrors = showErrors ? errors : [];
+  $('#validation-list').replaceChildren(...visibleErrors.map(({ input, label, message }) => {
+    const row = element('li');
+    const link = element(input ? 'a' : 'span', label ? label + ': ' + message : message);
+    if (input) {
+      link.href = '#' + input.id;
+      link.addEventListener('click', event => {
+        event.preventDefault(); setTab('edit');
+        for (let parent = input.parentElement; parent; parent = parent.parentElement) if (parent.tagName === 'DETAILS') parent.open = true;
+        input.focus({ preventScroll: true }); input.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+      });
+    }
+    row.append(link); return row;
+  }));
+  $('#validation-list').hidden = visibleErrors.length === 0;
+  $('#editor-errors').hidden = visibleErrors.length === 0 && !$('#form-status').textContent;
+  return errors;
+}
+
+function changed() { dirty = true; showErrors = true; $('#form-status').textContent = ''; update(); }
+
+function fill(card, slug = '') {
+  loading = true;
+  for (const name of ['url', 'title', 'description']) fields[name].value = card[name] ?? '';
+  const component = buildEmbed({ images: [], buttons: [], ...card }).component;
+  fields.color.value = '#' + (component.accent_color ?? 0x5865f2).toString(16).padStart(6, '0');
+  $('#no-accent').checked = component.accent_color == null;
+  $('#card-spoiler').checked = !!component.spoiler;
+  fields.slug.value = slug;
+  fields.slug.disabled = busy;
+  composer.set(component);
+  showErrors = false;
+  jsonDirty = false; $('#json-error').textContent = '';
+  loading = false;
   update();
 }
 
-function fill(card, slug = '') {
-  for (const name of ['url', 'title', 'description', 'color']) fields[name].value = card[name] ?? '';
-  fields.images.value = (card.images ?? []).join('\n');
-  fields.slug.value = slug;
-  fields.slug.disabled = !!editing;
-  $('#slug-hint').textContent = editing ? 'this link stays the same when you publish changes.' : 'lowercase letters, numbers, and hyphens.';
-  $('#button-list').replaceChildren();
-  (card.buttons ?? []).forEach(addButton);
-  update();
+async function withSessionLock(work) {
+  if (!navigator.locks) throw new Error('update your browser to save cards safely.');
+  return navigator.locks.request('linkbed-session', work);
 }
 
 async function api(path, options = {}) {
-  const response = await fetch(path, {
-    ...options,
-    headers: { 'content-type': 'application/json', ...options.headers },
-  });
+  const response = await fetch(path, { ...options, headers: { 'content-type': 'application/json', ...options.headers } });
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || 'request failed.');
   return data;
+}
+
+function syncAccount() {
+  $('#guest-notice').hidden = authenticated;
+  if (newToken && !$('#account-new-token').open) $('#account-new-token').showModal();
+  $('#sign-out').hidden = !authenticated || !!newToken;
+  $('#saved-cards').hidden = false;
+}
+
+async function openCard(card) {
+  if (busy || (dirty && !await confirmAction('discard unsaved changes?', 'discard'))) return;
+  editing = card.slug; slugEdited = true; dirty = false;
+  fill(card, card.slug); setTab('edit'); showView('editor');
+}
+
+async function deleteCard(slug, errorNode) {
+  if (busy || !await confirmAction('delete this card? its link will stop working.', 'delete card')) return;
+  setBusy(true);
+  try {
+    await api('/api/cards/' + slug, { method: 'DELETE' });
+    if (editing === slug) await reset(false);
+    await refreshCards(); toast('deleted.');
+  } catch (error) { errorNode.textContent = error.message; }
+  finally { setBusy(false); }
 }
 
 async function refreshCards() {
   const version = ++refreshVersion;
   try {
     const session = await api('/api/session');
-    const cards = session.authenticated ? await api('/api/cards') : [];
+    const cards = await api('/api/cards');
     if (version !== refreshVersion) return;
     authenticated = session.authenticated;
-    $('#account-button').textContent = authenticated ? 'account' : 'sign in';
-    $('#account-signed-out').hidden = authenticated;
-    $('#account-signed-in').hidden = !authenticated || !!newToken;
-    saved = cards;
-    $('#card-count').textContent = saved.length;
-    $('#saved-list').replaceChildren(...saved.map(card => {
-      const row = element('div', undefined, 'saved-row');
-      const info = element('div', undefined, 'saved-title');
-      info.append(element('strong', card.title), element('span', '/p/' + card.slug));
-      const edit = element('button', 'edit', 'text-button');
-      edit.type = 'button';
-      edit.addEventListener('click', () => {
-        if (pending) return;
-        if (dirty && !confirm('replace your unsaved draft with this card?')) return;
-        editing = card.slug;
-        slugEdited = true;
-        published = null;
-        dirty = false;
-        fill(card, card.slug);
-        $('#saved-cards').hidden = true;
-        fields.title.focus();
-      });
-      const remove = element('button', 'delete', 'text-button delete-button');
-      remove.type = 'button';
-      remove.addEventListener('click', async () => {
-        if (pending) return;
-        if (!confirm('delete this published card? its link will stop working.')) return;
-        try {
-          await api('/api/cards/' + card.slug, { method: 'DELETE' });
-          if (editing === card.slug) reset(false);
-          await refreshCards();
-          toast('card deleted.');
-        } catch (error) { toast(error.message); }
-      });
-      row.append(info, edit, remove);
-      return row;
+    syncAccount();
+    $('#card-count').textContent = cards.length;
+    $('#saved-list').replaceChildren(...cards.map(card => {
+      const tile = element('article', undefined, 'saved-card');
+      const open = element('button', undefined, 'saved-preview');
+      open.type = 'button';
+      open.setAttribute('aria-label', 'edit card: ' + card.title);
+      const preview = element('div', undefined, 'discord-card');
+      renderComponent(preview, buildEmbed(card).component);
+      preview.inert = true;
+      open.append(preview);
+      open.addEventListener('click', () => openCard(card));
+      const footer = element('div', undefined, 'saved-footer');
+      footer.title = card.title;
+      const remove = element('button', undefined, 'saved-delete'); remove.type = 'button'; remove.append(icon('trash-2'));
+      remove.title = 'delete';
+      remove.setAttribute('aria-label', 'delete card: ' + card.title);
+      remove.addEventListener('click', () => deleteCard(card.slug, $('#account-error')));
+      const url = element('a', undefined, 'saved-url');
+      url.append(element('span', location.host + '/' + card.slug, 'saved-url-label'));
+      url.href = cardUrl(card.slug); url.target = '_blank'; url.rel = 'noopener noreferrer';
+      url.title = location.host + '/' + card.slug;
+      const external = icon('external-link'); external.classList.add('saved-external');
+      url.append(external);
+      footer.append(url, remove);
+      tile.append(open, footer);
+      return tile;
     }));
-    if (!saved.length) $('#saved-list').append(element('p', authenticated ? 'your published cards will appear here.' : 'sign in to see your saved cards.', 'hint'));
+    const tile = element('article', undefined, 'saved-card');
+    const add = element('button', undefined, 'saved-add');
+    add.type = 'button';
+    add.setAttribute('aria-label', 'create a new card');
+    const plus = icon('plus');
+    add.append(plus, element('span', 'new card'));
+    add.addEventListener('click', newCard);
+    tile.append(add);
+    $('#saved-list').append(tile);
   } catch (error) {
-    if (version !== refreshVersion) return;
-    $('#form-status').textContent = 'could not load your cards. ' + error.message;
+    if (version === refreshVersion) $('#account-error').textContent = error.message;
   }
 }
 
-function reset(ask = true) {
-  if (pending) return;
-  if (ask && dirty && !confirm('start a new card and discard this draft?')) return;
-  editing = null;
-  published = null;
-  dirty = false;
-  slugEdited = false;
-  fields.slug.disabled = false;
-  fill({ url: '', title: '', description: '', color: '#5865f2', images: [], buttons: [{ label: '', url: '' }] });
+async function reset(ask = true) {
+  if (ask && (busy || (dirty && !await confirmAction('discard unsaved changes?', 'discard')))) return false;
+  editing = null; dirty = false; slugEdited = false;
   $('#form-status').textContent = '';
+  fill({
+    url: 'https://ryanaque.com/', title: 'may 🦋', description: 'projects, notes, and things worth keeping.',
+    component: {
+      type: 17, accent_color: 0xa2abff, components: [
+        {
+          type: 9,
+          components: [{ type: 10, content: "## hi! i'm may 🦋\ni'm a flexible software engineer. i love butterflies, designing, and writing." }],
+          accessory: { type: 11, media: { url: 'https://github.com/schmayterling.png' }, description: 'may’s profile picture' },
+        },
+        { type: 10, content: 'i make apps! here’s [pawl](https://pawl.cat), [hibi](https://hibi.garden), and [33](https://use33.app).' },
+        { type: 1, components: [
+          { type: 2, style: 5, label: 'portfolio', url: 'https://ryanaque.com/', emoji: { name: '🦋' } },
+          { type: 2, style: 5, label: 'github', url: 'https://github.com/schmayterling', emoji: { name: '👩‍💻' } },
+        ] },
+      ],
+    },
+  }, 'may');
+  return true;
 }
 
+async function newCard() {
+  if (await reset()) { setTab('edit'); showView('editor'); }
+}
+document.querySelectorAll('.site-header a[href="#new"], .site-header a[href="#cards"]').forEach(link => {
+  link.addEventListener('click', event => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    if (link.hash === '#cards') { showView('cards'); refreshCards(); }
+    else newCard();
+  });
+});
+$('#reset').addEventListener('click', () => reset());
+$('#delete-card').addEventListener('click', () => { if (editing) deleteCard(editing, $('#form-status')); });
+for (const type of ['focusin', 'click', 'input', 'change']) $('#card-form').addEventListener(type, () => {
+  if (loading || showErrors) return;
+  showErrors = true;
+  update();
+});
 $('#card-form').addEventListener('input', event => {
+  if (event.target.closest('#component-list, .json-panel')) return;
   if (event.target === fields.slug) slugEdited = true;
   if (event.target === fields.title && !editing && !slugEdited) fields.slug.value = slugify(fields.title.value);
+  if (event.target === fields.color || event.target.id === 'no-accent') {
+    if ($('#no-accent').checked) { Coloris.close(); composer.color(null); }
+    else if (/^#[0-9a-f]{6}$/i.test(fields.color.value)) composer.color(fields.color.value);
+    else changed();
+  } else if (event.target.id === 'card-spoiler') composer.spoiler(event.target.checked);
+  else changed();
+});
+$('#add-component').addEventListener('click', () => {
+  if (busy) return;
+  composer.add($('#component-type').value);
+  $('#component-list').lastElementChild?.querySelector('textarea, input')?.focus();
+});
+function jsonChanged() {
+  jsonDirty = true;
   changed();
+  try {
+    importCardJson($('#component-json').value);
+    $('#json-error').textContent = '';
+  } catch (error) { $('#json-error').textContent = error.message; }
+}
+$('#component-json').addEventListener('input', jsonChanged);
+function applyJson(value) {
+  const imported = importCardJson(value);
+  fill({ ...draft(), ...imported }, editing || (slugEdited ? fields.slug.value : slugify(imported.title || fields.title.value)));
+  changed();
+}
+$('#apply-json').addEventListener('click', () => {
+  if (busy) return;
+  try { applyJson($('#component-json').value); $('#json-panel').close(); }
+  catch (error) { $('#json-error').textContent = error.message; }
 });
-$('#add-button').addEventListener('click', () => { addButton(); changed(); $('#button-list').lastChild.querySelector('input').focus(); });
-document.querySelectorAll('[data-color]').forEach(button => button.addEventListener('click', () => { fields.color.value = button.dataset.color; changed(); }));
-$('#reset').addEventListener('click', () => reset());
-$('#show-cards').addEventListener('click', () => {
-  if (!authenticated) { openAccount(); return; }
-  $('#saved-cards').hidden = !$('#saved-cards').hidden;
-  refreshCards();
+$('#copy-json').addEventListener('click', () => copy($('#component-json').value));
+function closeMenus() {
+  document.querySelectorAll('.toolbar-menu:popover-open, #site-nav:popover-open').forEach(menu => menu.hidePopover());
+}
+for (const [menuId, toggleId] of [['export-menu', 'export-toggle'], ['mobile-actions-menu', 'actions-toggle']]) {
+  const menu = $('#' + menuId), toggle = $('#' + toggleId);
+  menu.addEventListener('beforetoggle', event => {
+    toggle.setAttribute('aria-expanded', String(event.newState === 'open'));
+    if (event.newState !== 'open') return;
+    const rect = (mobile.matches ? $('#actions-toggle') : toggle).getBoundingClientRect();
+    menu.style.left = Math.max(12, Math.min(rect.right - 180, innerWidth - 192)) + 'px';
+    menu.style.top = rect.bottom + 6 + 'px';
+  });
+}
+$('#export-toggle').addEventListener('click', event => {
+  if (!mobile.matches) return;
+  event.preventDefault();
+  closeMenus();
+  $('#export-menu').showPopover();
+  $('#copy-message-json').focus({ preventScroll: true });
 });
-$('#close-cards').addEventListener('click', () => { $('#saved-cards').hidden = true; });
+$('#export-menu').addEventListener('toggle', event => {
+  if (event.newState === 'closed' && mobile.matches) $('#actions-toggle').focus({ preventScroll: true });
+});
+window.addEventListener('scroll', () => { syncHeaderVisibility(); closeMenus(); }, { passive: true });
+window.addEventListener('pageshow', syncHeaderVisibility);
+window.addEventListener('resize', closeMenus);
+function syncPickerOrigin(event) {
+  const select = event.target.closest('select');
+  if (!select) return;
+  requestAnimationFrame(() => {
+    if (!select.matches(':open')) return;
+    const area = getComputedStyle(select, '::picker(select)').positionArea;
+    select.toggleAttribute('data-opens-above', /^(self-start|block-start|top)(?: |$)/.test(area));
+  });
+}
+for (const type of ['pointerdown', 'click', 'keydown']) document.addEventListener(type, syncPickerOrigin, true);
+function exportJson(action) {
+  if (busy) return;
+  closeMenus();
+  try {
+    const card = jsonDirty ? importCardJson($('#component-json').value) : draft();
+    action(messageJson(card)); $('#json-error').textContent = '';
+  } catch (error) { $('#form-status').textContent = error.message; validateEditor(); toast(error.message); }
+}
+$('#copy-message-json').addEventListener('click', () => exportJson(copy));
+$('#download-json').addEventListener('click', () => exportJson(json => {
+  const url = URL.createObjectURL(new Blob([json + '\n'], { type: 'application/json' }));
+  const link = element('a'); link.href = url; link.download = (slugify(fields.slug.value) || 'card') + '.json'; link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}));
+async function openJsonEditor() {
+  if (busy) return;
+  closeMenus();
+  $('#json-panel').showModal();
+  $('#component-json').focus();
+  try {
+    if (!jsonEditor) {
+      const { createJsonEditor } = await import('./code-editor.mjs');
+      if (!jsonEditor) jsonEditor = createJsonEditor($('#component-json'), jsonChanged);
+    }
+    if ($('#json-panel').open) jsonEditor.focus();
+  } catch { $('#json-error').textContent = 'code editor unavailable. you can still edit the text.'; }
+}
+$('#edit-json').addEventListener('click', openJsonEditor);
+$('#format-json').addEventListener('click', () => {
+  try {
+    if (jsonEditor) jsonEditor.format();
+    else { $('#component-json').value = JSON.stringify(JSON.parse($('#component-json').value), null, 2); jsonChanged(); }
+  } catch (error) { $('#json-error').textContent = error.message; }
+});
+$('#show-url-import').addEventListener('click', () => {
+  if (busy) return;
+  $('#url-import-value').value = fields.url.value;
+  $('#url-import-error').textContent = ''; $('#url-import-dialog').showModal();
+});
+$('#show-embed').addEventListener('click', () => {
+  if (busy) return;
+  closeMenus(); $('#embed-dialog').showModal();
+});
+document.querySelectorAll('.tool-dialog').forEach(dialog => {
+  dialog.setAttribute('closedby', 'any');
+  dialog.addEventListener('cancel', event => { if (busy) event.preventDefault(); });
+  if (!('closedBy' in dialog)) {
+    const outside = event => {
+      const rect = dialog.getBoundingClientRect();
+      return event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom;
+    };
+    let pressedOutside = false;
+    dialog.addEventListener('pointerdown', event => { pressedOutside = event.target === dialog && outside(event); });
+    dialog.addEventListener('click', event => {
+      if (pressedOutside && event.target === dialog && outside(event) && !busy) dialog.close();
+      pressedOutside = false;
+    });
+  }
+  dialog.querySelectorAll('[data-close]').forEach(button => {
+    button.addEventListener('click', () => { if (!busy) dialog.close(); });
+  });
+});
+$('#import-json-button').addEventListener('click', () => { if (!busy) $('#import-json').click(); });
+$('#import-json').addEventListener('change', async event => {
+  const file = event.target.files[0];
+  if (!file || busy) return;
+  setBusy(true);
+  try {
+    if (file.size > 64000) throw new Error('json file is too large.');
+    const value = await file.text();
+    importCardJson(value);
+    $('#component-json').value = value;
+    jsonEditor?.set(value);
+    jsonChanged();
+  } catch (error) { $('#json-error').textContent = error.message; }
+  finally { event.target.value = ''; setBusy(false); }
+});
 
 const templates = {
-  launch: { title: 'meet the next version.', description: 'built with care. ready for you.\n\nexplore what’s new, read the docs, and make it your own.', buttons: [{ label: 'try it out', url: 'https://example.com/' }, { label: 'read the docs', url: 'https://example.com/docs' }] },
-  portfolio: { title: 'good work. good company.', description: 'a selection of things i’ve made, and a few things i’d love to make with you.\n\nopen for thoughtful projects.', buttons: [{ label: 'see my work', url: 'https://example.com/' }, { label: 'get in touch', url: 'https://example.com/contact' }] },
-  event: { title: 'save you a seat?', description: 'good people, fresh ideas, and a reason to step away from your desk.\n\nall the details are one click away.', buttons: [{ label: 'event details', url: 'https://example.com/' }, { label: 'save your spot', url: 'https://example.com/register' }] },
+  launch: { title: 'new release', description: '**ready to try.**\nsee what’s new.', buttons: [{ label: 'try it', url: 'https://example.com/' }, { label: 'docs', url: 'https://example.com/docs' }] },
+  portfolio: { title: 'my work', description: 'a few things i’ve made.', buttons: [{ label: 'portfolio', url: 'https://example.com/' }, { label: 'contact', url: 'https://example.com/contact' }] },
+  event: { title: 'you’re invited', description: 'join us for an evening of ideas.', buttons: [{ label: 'details', url: 'https://example.com/' }, { label: 'rsvp', url: 'https://example.com/rsvp' }] },
 };
-document.querySelectorAll('[data-template]').forEach(button => button.addEventListener('click', () => {
-  if (pending) return;
-  if (dirty && !confirm('replace your unsaved content with this template?')) return;
+document.querySelectorAll('[data-template]').forEach(button => button.addEventListener('click', async () => {
+  if (busy || (dirty && !await confirmAction('replace current draft?', 'replace'))) return;
   const template = templates[button.dataset.template];
   let source = 'https://example.com/';
   try { source = httpsUrl(fields.url.value); } catch {}
-  fill({ ...draft(), ...template, url: source, buttons: template.buttons.map((button, index) => ({ ...button, url: index ? new URL(new URL(button.url).pathname, source).href : source })) }, editing || slugify(template.title));
+  fill({ ...template, color: fields.color.value, images: [], url: source, buttons: template.buttons.map(button => ({ ...button, url: new URL(new URL(button.url).pathname, source).href })) }, editing || slugify(template.title));
   changed();
 }));
 
-$('#import-button').addEventListener('click', async () => {
-  if (pending) return;
-  const button = $('#import-button');
-  $('#form-status').textContent = '';
+$('#url-import-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  if (busy) return;
+  $('#url-import-error').textContent = '';
   try {
-    httpsUrl(fields.url.value.trim());
-    setPending(true);
-    button.textContent = 'importing…';
-    const card = await api('/api/import', { method: 'POST', body: JSON.stringify({ url: fields.url.value.trim() }) });
-    fill(card, editing || (slugEdited ? fields.slug.value : slugify(card.title)));
-    changed();
-    toast('link imported. make it yours.');
-  } catch (error) {
-    $('#form-status').textContent = error.message;
-  } finally {
-    setPending(false);
-    button.textContent = 'import ↓';
-  }
+    const url = httpsUrl($('#url-import-value').value.trim());
+    setBusy(true); $('#import-button').textContent = 'importing…';
+    const card = await api('/api/import', { method: 'POST', body: JSON.stringify({ url }) });
+    fill(card, editing || (slugEdited ? fields.slug.value : slugify(card.title))); changed();
+    $('#url-import-dialog').close();
+  } catch (error) { $('#url-import-error').textContent = error.message; }
+  finally { $('#import-button').textContent = 'use template'; setBusy(false); }
 });
 
+$('#publish-button').addEventListener('click', () => {
+  showErrors = true;
+  if (validateEditor().length) setTab('edit');
+});
 $('#card-form').addEventListener('submit', async event => {
   event.preventDefault();
-  if (pending) return;
+  if (busy || jsonDirty) return;
   $('#form-status').textContent = '';
-  if (!authenticated) { openAccount(); return; }
-  const button = $('#publish-button');
+  showErrors = true;
+  if (validateEditor().length) return;
   try {
     const card = normalizeCard(draft());
-    setPending(true);
-    button.textContent = 'publishing…';
-    published = await api(editing ? '/api/cards/' + editing : '/api/cards', {
-      method: editing ? 'PUT' : 'POST',
-      body: JSON.stringify({ ...card, slug: fields.slug.value }),
+    if (editing && fields.slug.value !== editing && !await confirmAction('change /' + editing + ' to /' + fields.slug.value + '? the old link will stop working.', 'change link')) return;
+    setBusy(true); $('#publish-label').textContent = 'saving…';
+    const published = await withSessionLock(async () => {
+      const session = await api('/api/session');
+      if (!session.authenticated && !session.guest) {
+        if (editing) throw new Error('edit access expired. sign in with your token to recover it.');
+        await api('/api/guest', { method: 'POST', body: '{}' });
+      }
+      return api(editing ? '/api/cards/' + editing : '/api/cards', { method: editing ? 'PUT' : 'POST', body: JSON.stringify({ ...card, slug: fields.slug.value }) });
     });
-    editing = published.slug;
-    dirty = false;
-    slugEdited = true;
-    fields.slug.disabled = true;
-    $('#slug-hint').textContent = 'this link stays the same when you publish changes.';
-    $('#published-url').value = published.url;
-    $('#open-card').href = published.url;
-    $('#local-note').hidden = !['localhost', '127.0.0.1'].includes(new URL(published.url).hostname);
-    update();
-    $('#publish-result').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'nearest' });
-    toast('published. your card is ready.');
-    await refreshCards();
-  } catch (error) {
-    $('#form-status').textContent = error.message;
-  } finally {
-    button.replaceChildren(document.createTextNode(editing ? 'publish changes ' : 'publish card '), element('span', '↗'));
-    setPending(false);
-  }
+    editing = published.slug; dirty = false; slugEdited = true;
+    await refreshCards(); toast('saved.');
+  } catch (error) { $('#form-status').textContent = error.message; }
+  finally { setBusy(false); }
 });
 
 async function copy(text) {
-  try { await navigator.clipboard.writeText(text); toast('copied to clipboard.'); } catch {
-    $('#form-status').textContent = 'clipboard unavailable. select and copy the text instead.';
-  }
+  try { await navigator.clipboard.writeText(text); toast('copied.'); }
+  catch { toast('could not copy. select text to copy.'); }
 }
-$('#copy-link').addEventListener('click', () => published && copy(published.url));
-$('#copy-fresh').addEventListener('click', () => published && copy(published.freshUrl));
 $('#copy-code').addEventListener('click', () => {
-  try { normalizeCard(draft()); copy($('#embed-code').value); } catch (error) { $('#form-status').textContent = error.message; }
+  try { normalizeComponent(composer.get()); copy($('#embed-code').value); } catch (error) { $('#form-status').textContent = error.message; validateEditor(); }
 });
-window.addEventListener('beforeunload', event => { if (dirty || newToken || authBusy) { event.preventDefault(); event.returnValue = ''; } });
 
-
-function openAccount() {
-  if (pending || authBusy) return;
-  $('#account-error').textContent = '';
-  $('#account-signed-out').hidden = authenticated;
-  $('#account-new-token').hidden = !newToken;
-  $('#account-signed-in').hidden = !authenticated || !!newToken;
-  $('#close-account').hidden = !!newToken;
-  $('#account-dialog').showModal();
+async function accountRequest(path, data = {}) {
+  const errorNode = path === '/api/login' ? $('#sign-in-error') : $('#account-error');
+  errorNode.textContent = '';
+  refreshVersion++;
+  setBusy(true); authBusy = true;
+  try {
+    return await withSessionLock(async () => {
+      if (path === '/api/signup' && (await api('/api/session')).authenticated) throw new Error('already signed in. reload to see your cards.');
+      return api(path, { method: 'POST', body: JSON.stringify(data) });
+    });
+  } catch (error) { errorNode.textContent = error.message; }
 }
-$('#account-button').addEventListener('click', openAccount);
-$('#close-account').addEventListener('click', () => { if (!authBusy && !newToken) $('#account-dialog').close(); });
-$('#account-dialog').addEventListener('cancel', event => { if (newToken || authBusy) event.preventDefault(); });
+function finishAuth() { authBusy = false; setBusy(false); syncAccount(); }
 
-function setAuthBusy(value) {
-  authBusy = value;
-  if (value) {
-    refreshVersion++;
-    authControls = [...document.querySelectorAll('#account-dialog button, #account-dialog input')].map(control => [control, control.disabled]);
-    authControls.forEach(([control]) => { control.disabled = true; });
-    $('#account-dialog').setAttribute('aria-busy', 'true');
-  } else {
-    authControls.forEach(([control, disabled]) => { control.disabled = disabled; });
-    $('#account-dialog').removeAttribute('aria-busy');
-    $('#finish-account').disabled = !$('#token-saved').checked;
-  }
-}
-
-async function accountRequest(path, data) {
-  $('#account-error').textContent = '';
-  try { return await api(path, { method: 'POST', body: JSON.stringify(data || {}) }); }
-  catch (error) { $('#account-error').textContent = error.message; }
-}
-
-$('#create-account').addEventListener('click', async () => {
-  if (authBusy) return;
-  setAuthBusy(true);
+document.querySelectorAll('.create-token').forEach(button => button.addEventListener('click', async () => {
+  if (busy) return;
+  resumeEditor = document.body.dataset.view === 'editor';
+  showView('cards');
   const result = await accountRequest('/api/signup');
-  if (!result) { setAuthBusy(false); return; }
-  authenticated = true;
-  newToken = result.token;
-  $('#new-token').value = newToken;
-  $('#token-saved').checked = false;
-  $('#finish-account').disabled = true;
-  $('#account-new-token').hidden = false;
-  $('#account-signed-out').hidden = true;
-  $('#close-account').hidden = true;
-  await refreshCards();
-  setAuthBusy(false);
+  if (result) {
+    authenticated = true; newToken = result.token;
+    $('#new-token').textContent = newToken;
+    $('#download-token').removeAttribute('data-downloaded');
+    $('#download-token').textContent = 'download';
+    await refreshCards();
+  }
+  finishAuth();
+  if (result) $('#copy-token').focus({ preventScroll: true });
+}));
+const reportDialog = $('#report-dialog'), reportForm = $('#report-form'), reportUrl = $('#report-url'), reportConfirm = $('#report-confirm');
+const checkReportUrl = fieldValidator(reportUrl, value => normalizeReportLink(value, location.origin), 'link to report');
+autoFormatField(reportUrl, formatUrl);
+function checkReportConfirmation() {
+  const message = reportConfirm.checked ? '' : 'confirm that this link contains abusive content.';
+  reportConfirm.setCustomValidity(message);
+  reportConfirm.setAttribute('aria-invalid', String(!!message));
+  $('#report-confirm-error').textContent = message;
+  $('#report-confirm-error').hidden = !message;
+  return message;
+}
+$('#report-abuse').addEventListener('click', () => {
+  if (busy) return;
+  closeMenus(); reportForm.reset();
+  reportUrl.value = editing ? cardUrl(editing) : '';
+  $('#report-error').textContent = '';
+  reportDialog.showModal(); reportUrl.focus();
+});
+reportUrl.addEventListener('input', () => { checkReportUrl(); $('#report-error').textContent = ''; });
+reportConfirm.addEventListener('change', checkReportConfirmation);
+reportDialog.addEventListener('close', () => {
+  reportForm.reset();
+  for (const input of [reportUrl, reportConfirm]) { input.setCustomValidity(''); input.removeAttribute('aria-invalid'); }
+  for (const id of ['report-url-error', 'report-confirm-error']) { $('#' + id).textContent = ''; $('#' + id).hidden = true; }
+  $('#report-error').textContent = '';
+});
+reportForm.addEventListener('submit', async event => {
+  event.preventDefault();
+  if (busy) return;
+  const urlError = checkReportUrl(), confirmError = checkReportConfirmation();
+  if (urlError || confirmError) { (urlError ? reportUrl : reportConfirm).focus(); return; }
+  setBusy(true); $('#send-report').textContent = 'sending…'; $('#report-error').textContent = '';
+  let sent = false;
+  try {
+    const link = normalizeReportLink(reportUrl.value, location.origin);
+    await api('/api/reports', { method: 'POST', body: JSON.stringify({ url: link.url, confirmed: reportConfirm.checked }) });
+    sent = true;
+  } catch (error) { $('#report-error').textContent = error.message; }
+  finally { setBusy(false); $('#send-report').textContent = 'send report'; }
+  if (sent) { reportDialog.close(); toast('report sent. thank you.'); }
+});
+
+$('#show-sign-in').addEventListener('click', () => {
+  if (busy) return;
+  closeMenus(); $('#sign-in-error').textContent = '';
+  $('#sign-in-dialog').showModal();
+  $('#sign-in-token').focus();
 });
 $('#sign-in-form').addEventListener('submit', async event => {
   event.preventDefault();
-  if (authBusy) return;
-  setAuthBusy(true);
+  if (busy) return;
   const result = await accountRequest('/api/login', { token: $('#sign-in-token').value.trim() });
-  if (!result) { setAuthBusy(false); return; }
-  $('#sign-in-token').value = '';
-  authenticated = true;
-  $('#account-dialog').close();
-  if (editing) reset(false);
-  await refreshCards();
-  setAuthBusy(false);
-  toast('signed in.');
+  if (result) {
+    $('#sign-in-token').value = ''; authenticated = true;
+    $('#sign-in-dialog').close();
+    await refreshCards();
+  }
+  finishAuth();
+  if (result && resumeEditor) { resumeEditor = false; showView('editor'); }
+  else if (result) $('#cards-heading').focus({ preventScroll: true });
 });
-$('#copy-token').addEventListener('click', async () => {
-  try { await navigator.clipboard.writeText(newToken); toast('token copied. save it in your password manager.'); }
-  catch { $('#account-error').textContent = 'clipboard unavailable. download your token instead.'; }
-});
+$('#sign-in-dialog').addEventListener('close', () => { $('#sign-in-token').value = ''; });
+$('#copy-token').addEventListener('click', () => copy(newToken));
 $('#download-token').addEventListener('click', () => {
-  const url = URL.createObjectURL(new Blob(['lembed sign-in token\n' + newToken + '\n\nkeep this private. anyone with it can edit your cards.\nsign in at ' + location.origin + '\n'], { type: 'text/plain' }));
-  const link = element('a');
-  link.href = url;
-  link.download = 'lembed-sign-in-token.txt';
-  link.click();
+  if (busy || !newToken) return;
+  const url = URL.createObjectURL(new Blob(['linkbed access token\n' + newToken + '\n\nkeep private. sign in at ' + location.origin + '\n'], { type: 'text/plain' }));
+  const link = element('a'); link.href = url; link.download = 'linkbed-access-token.txt'; link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+  $('#download-token').dataset.downloaded = 'true';
+  $('#download-token').textContent = 'downloaded';
 });
-$('#token-saved').addEventListener('change', () => { $('#finish-account').disabled = !$('#token-saved').checked; });
-$('#finish-account').addEventListener('click', () => {
-  newToken = '';
-  $('#new-token').value = '';
-  $('#account-new-token').hidden = true;
-  $('#close-account').hidden = false;
-  $('#account-dialog').close();
-  toast('account ready. you can publish your card.');
+$('#finish-account').addEventListener('click', () => { if (!busy) $('#account-new-token').close(); });
+$('#account-new-token').addEventListener('close', () => {
+  newToken = ''; $('#new-token').textContent = ''; syncAccount();
+  if (resumeEditor) { resumeEditor = false; showView('editor'); }
+  else $('#cards-heading').focus({ preventScroll: true });
 });
 $('#sign-out').addEventListener('click', async () => {
-  if (authBusy) return;
-  if (dirty && !confirm('sign out and discard your unsaved changes?')) return;
-  setAuthBusy(true);
+  if (busy || (dirty && !await confirmAction('sign out and discard your draft?', 'sign out'))) return;
   const result = await accountRequest('/api/logout');
-  if (!result) { setAuthBusy(false); return; }
-  authenticated = false;
-  $('#account-dialog').close();
-  reset(false);
-  await refreshCards();
-  setAuthBusy(false);
-  toast('signed out.');
+  if (result) { authenticated = false; reset(false); await refreshCards(); }
+  finishAuth();
+});
+window.addEventListener('beforeunload', event => { if (dirty || newToken || authBusy) { event.preventDefault(); event.returnValue = ''; } });
+
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  $('#theme-toggle').setAttribute('aria-label', 'switch to ' + (theme === 'dark' ? 'light' : 'dark') + ' mode');
+  $('#theme-toggle').replaceChildren(icon(theme === 'dark' ? 'sun' : 'moon'), element('span', theme === 'dark' ? 'light mode' : 'dark mode', 'nav-theme-label'));
+  Coloris({ themeMode: theme });
+  if ($('emoji-picker')) $('emoji-picker').className = theme;
+}
+let theme;
+try { theme = localStorage.getItem('theme'); } catch {}
+applyTheme(theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
+$('#theme-toggle').addEventListener('click', () => {
+  const theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+  applyTheme(theme);
+  try { localStorage.setItem('theme', theme); } catch {}
 });
 
-reset(false);
-refreshCards();
+function applyPreviewTheme(theme) {
+  $('.discord-window').dataset.previewTheme = theme;
+  document.querySelectorAll('.preview-themes button').forEach(button => {
+    button.setAttribute('aria-pressed', String(button.dataset.previewTheme === theme));
+  });
+}
+let previewTheme;
+try { previewTheme = localStorage.getItem('preview-theme'); } catch {}
+applyPreviewTheme(previewTheme === 'light' ? 'light' : 'dark');
+document.querySelectorAll('.preview-themes button').forEach(button => {
+  button.addEventListener('click', () => {
+    const theme = button.dataset.previewTheme;
+    applyPreviewTheme(theme);
+    try { localStorage.setItem('preview-theme', theme); } catch {}
+  });
+});
+
+mountIcons();
+syncNavigation();
+reset(false); setTab('edit'); showView(location.hash === '#cards' ? 'cards' : 'editor', false); syncAccount(); refreshCards();

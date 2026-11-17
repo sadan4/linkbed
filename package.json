@@ -8,13 +8,21 @@
     "node": ">=24"
   },
   "scripts": {
-    "dev": "node --watch server.mjs",
-    "start": "node server.mjs",
-    "test": "node --test test/*.test.mjs"
+    "dev": "node --env-file-if-exists=.env --watch server.mjs",
+    "start": "node --env-file-if-exists=.env server.mjs",
+    "test": "node --test test/*.test.mjs",
+    "vendor": "node scripts/vendor.mjs"
   },
   "dependencies": {
     "@libsql/client": "^0.18.0",
+    "@melloware/coloris": "0.25.2",
     "cheerio": "^1.1.2",
-    "ipaddr.js": "^2.2.0"
+    "codemirror": "5.65.21",
+    "emoji-picker-element": "1.29.1",
+    "emoji-picker-element-data": "1.8.0",
+    "ipaddr.js": "^2.2.0",
+    "lucide-static": "1.73.0",
+    "markdown-it": "^15.0.3",
+    "sortablejs": "1.15.7"
   }
 }

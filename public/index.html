@@ -3,153 +3,222 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>lembed — links with something to say</title>
-  <meta name="description" content="turn a link into a discord card with real buttons. import, customize, and share.">
-  <meta name="theme-color" content="#494acb">
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <title>linkbed — your cards</title>
+  <meta name="description" content="make custom discord cards with real buttons, images, and rich text. preview as you edit, then share one link.">
+  <meta property="og:title" content="linkbed.me">
+  <meta property="og:description" content="make custom discord cards with real buttons, images, and rich text. preview as you edit, then share one link.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://linkbed.ryana.dev/">
+  <meta name="theme-color" content="#a2abff">
+  <script id="discord:component-embed" type="application/json">{"component":{"type":17,"accent_color":10660863,"components":[{"type":10,"content":"# linkbed.me 🦋\nyour links, but prettier."},{"type":10,"content":"make custom discord cards with **real buttons**, images, and rich text. preview as you edit, then share one link."},{"type":1,"components":[{"type":2,"style":5,"url":"https://linkbed.me/","label":"make a card","emoji":{"name":"🦋"}},{"type":2,"style":5,"url":"https://x.com/schmayterling","label":"follow may maybe?","emoji":{"id":null,"name":"🫪"}}]},{"type":14,"divider":true,"spacing":1},{"type":10,"content":"-# free to use · no signup needed · made by [may](https://ryanaque.com/)"}]}}</script>
+  <link rel="icon" href="https://github.com/schmayterling.png?size=64" type="image/png">
+  <link rel="stylesheet" href="/vendor/codemirror.css">
+  <link rel="stylesheet" href="/vendor/coloris.css">
   <link rel="stylesheet" href="/style.css">
   <script type="module" src="/app.mjs"></script>
 </head>
 <body>
   <header class="site-header">
-    <a class="brand" href="/">lembed</a>
-    <nav aria-label="main navigation">
-      <a href="#how-it-works" class="quiet-link">how it works</a>
-      <button type="button" class="text-button" id="account-button">sign in</button>
-      <button type="button" class="button secondary small" id="show-cards">your cards <span id="card-count">0</span></button>
+    <a class="brand" href="#new"><span aria-hidden="true">🦋</span> linkbed.me</a>
+    <button type="button" class="nav-toggle" id="nav-toggle" popovertarget="site-nav" aria-controls="site-nav" aria-expanded="false" aria-label="open navigation"><span data-icon="menu"></span></button>
+    <nav id="site-nav" aria-label="main navigation">
+      <a class="nav-link" id="make-card" href="#new">new card</a>
+      <a class="nav-link" id="show-cards" href="#cards">your cards</a>
+      <button type="button" class="text-button nav-link" id="report-abuse" aria-haspopup="dialog" aria-controls="report-dialog">report abuse</button>
+      <a class="nav-link" href="https://github.com/sponsors/schmayterling" target="_blank" rel="noopener noreferrer">donate</a>
+      <button type="button" id="sign-out" class="text-button nav-sign-out" hidden>sign out</button>
+      <button type="button" class="theme-toggle" id="theme-toggle" aria-label="switch to dark mode"><span data-icon="moon"></span><span class="nav-theme-label">dark mode</span></button>
     </nav>
   </header>
-
   <main>
-    <section id="saved-cards" class="saved-cards page-width" hidden aria-labelledby="saved-heading">
-      <div class="section-title"><h2 id="saved-heading">your cards</h2><button type="button" class="text-button" id="close-cards">close ×</button></div>
-      <p class="hint">saved to your account. sign in with your token on any device.</p>
-      <div id="saved-list"></div>
-    </section>
-    <div class="intro page-width">
-      <div><p class="eyebrow">the discord card studio</p><h1>a link, with more to it.</h1><p class="lede">turn your next launch, project, or introduction into a card worth clicking.</p></div>
-      <p class="intro-note"><span class="status-dot"></span>real buttons. one shareable link.</p>
-    </div>
-    <div class="workspace page-width">
-      <section class="editor" aria-labelledby="editor-heading">
-        <div class="editor-top"><h2 id="editor-heading">make it yours</h2><button class="text-button" type="button" id="reset">new card ↗</button></div>
-        <form id="card-form">
-          <div class="form-section first-section">
-            <label for="source-url">start with a link</label>
-            <div class="input-action"><input id="source-url" type="url" placeholder="https://your-next-thing.com" required maxlength="512" autocomplete="url"><button id="import-button" class="button secondary" type="button">import <span aria-hidden="true">↓</span></button></div>
-            <p class="hint">we’ll bring in its title, description, and image.</p>
+    <section id="cards-view" aria-labelledby="cards-heading">
+      <h1 id="cards-heading" tabindex="-1">your cards</h1>
+      <section id="account-panel" aria-label="access your cards">
+        <aside id="guest-notice" class="guest-notice" aria-label="temporary guest cards">
+          <div>
+            <p><strong>save access to your cards.</strong></p>
+            <p class="hint">clearing cookies loses edit access. create an access token to edit your cards later, on any device.</p>
+            <button type="button" class="text-button" id="show-sign-in" aria-haspopup="dialog" aria-controls="sign-in-dialog">already have a token? sign in</button>
           </div>
-          <div class="form-section">
-            <div class="section-title"><h3>the story</h3><div class="templates" aria-label="starting points"><button type="button" data-template="launch">launch</button><button type="button" data-template="portfolio">portfolio</button><button type="button" data-template="event">event</button></div></div>
-            <label for="title">title <span class="field-meta" id="title-count">0 / 100</span></label>
-            <input id="title" maxlength="100" required placeholder="something worth sharing">
-            <label for="description">description <span class="optional">optional</span></label>
-            <textarea id="description" rows="3" maxlength="1200" placeholder="a little context goes a long way."></textarea>
-            <div class="color-field"><label for="color">accent color</label><div class="swatches" aria-label="preset accent colors">
-              <button type="button" class="swatch indigo" data-color="#5865f2" aria-label="indigo"></button>
-              <button type="button" class="swatch mint" data-color="#34b398" aria-label="mint"></button>
-              <button type="button" class="swatch rose" data-color="#da607f" aria-label="rose"></button>
-              <button type="button" class="swatch amber" data-color="#ca8a24" aria-label="amber"></button>
-              <input id="color" type="color" value="#5865f2" aria-label="custom accent color">
-            </div></div>
+          <div class="guest-actions">
+            <button type="button" class="button primary small create-token">create an access token</button>
           </div>
-          <div class="form-section">
-            <div class="section-title"><h3>give them somewhere to go</h3><span class="field-meta" id="button-count">1 / 5</span></div>
-            <div id="button-list"></div>
-            <button class="text-button add-button" id="add-button" type="button">+ add a button</button>
-          </div>
-          <details class="form-section media-section">
-            <summary><span>add images</span><span class="field-meta" id="image-count">0 / 10</span></summary>
-            <label for="images">image urls <span class="optional">one per line</span></label>
-            <textarea id="images" rows="3" placeholder="https://example.com/image.jpg"></textarea>
-            <p class="hint">public https images. keep files small so discord can load them quickly.</p>
-          </details>
-          <div class="publish-section">
-            <label for="slug">your shareable link</label>
-            <div class="slug-field"><span id="slug-prefix">/p/</span><input id="slug" required maxlength="60" pattern="[a-z0-9]+(-[a-z0-9]+)*" placeholder="your-next-thing" spellcheck="false" autocapitalize="off" aria-describedby="slug-hint"></div>
-            <p id="slug-hint" class="hint">lowercase letters, numbers, and hyphens.</p>
-            <p class="form-status" id="form-status" role="status" aria-live="polite"></p>
-            <button id="publish-button" class="button primary publish-button" type="submit">publish card <span aria-hidden="true">↗</span></button>
-            <p class="privacy-note">save cards with a sign-in token. no email or password.</p>
-          </div>
-        </form>
+        </aside>
+        <p id="account-error" class="form-status" role="status" aria-live="polite"></p>
       </section>
+      <section id="saved-cards" class="saved-cards" aria-label="saved cards">
+        <div class="section-title"><p class="muted"><span id="card-count">0</span> saved cards</p></div>
+        <div id="saved-list"></div>
+      </section>
+    </section>
 
-      <aside class="preview-panel" aria-labelledby="preview-heading">
-        <div class="preview-header"><h2 id="preview-heading">a little preview</h2><span class="live-indicator"><span class="status-dot"></span>live</span></div>
-        <div class="preview-wrap">
-          <div class="discord-window">
-            <div class="channel-bar"><span aria-hidden="true">#</span> showcase <span class="channel-caption">good things go here</span></div>
-            <div class="discord-message">
-              <div class="message-content">
-                <div class="message-author">you <span>today at 12:00</span></div>
-                <p class="message-link" id="preview-url">lembed.ryana.dev/p/your-next-thing</p>
-                <article class="discord-card" id="preview-card">
-                  <h3 id="preview-title">something worth sharing</h3>
-                  <div id="preview-description">your story goes here. a launch, a project, an open invitation — make it yours.</div>
-                  <div class="preview-gallery" id="preview-gallery" hidden></div>
-                  <div class="preview-buttons" id="preview-buttons"></div>
-                </article>
-              </div>
-            </div>
-            <div class="discord-composer"><span aria-hidden="true">⊕</span> message #showcase <span aria-hidden="true">☺</span></div>
-          </div>
-          <div class="preview-footer"><span>discord preview</span><span id="byte-count">0 / 3,000 bytes</span></div>
-          <p id="preview-warning" class="preview-warning" role="status"></p>
-          <div id="publish-result" class="publish-result" hidden>
-            <div class="result-heading"><span class="success-mark" aria-hidden="true">✓</span><h3>ready for its entrance.</h3></div>
-            <p>paste this link into a discord channel or dm.</p>
-            <div class="result-link"><input id="published-url" readonly aria-label="published card url"><button class="button secondary" id="copy-link" type="button">copy link</button></div>
-            <div class="result-actions"><a id="open-card" href="#" target="_blank" rel="noopener noreferrer">open card ↗</a><button type="button" id="copy-fresh" class="text-button">copy fresh preview link</button></div>
-            <p class="hint">discord caches previews. use the fresh link after edits.</p>
-            <p class="hint" id="local-note" hidden>this local link only works on your computer. deploy it before sharing in discord.</p>
-          </div>
-          <details class="export-panel">
-            <summary>hosting your own page? <span>copy the embed code ↗</span></summary>
-            <p class="hint">paste inside the initial html &lt;head&gt; your server sends. browser-only scripts won’t work.</p>
-            <textarea id="embed-code" readonly rows="5" spellcheck="false" aria-label="discord embed script"></textarea>
-            <button type="button" class="button secondary small" id="copy-code">copy embed code</button>
+    <section id="editor-view" aria-labelledby="editor-heading">
+      <div class="editor-toolbar">
+      <div class="section-title editor-heading">
+        <h1 id="editor-heading" tabindex="-1">make a card</h1>
+        <div class="toolbar-actions" role="group" aria-label="card actions">
+          <button type="button" class="button secondary small" id="edit-json"><span data-icon="square-pen"></span>edit json</button>
+          <button type="button" class="button secondary small" id="export-toggle" popovertarget="export-menu"><span data-icon="download"></span>export<span data-icon="chevron-down"></span></button>
+          <button type="button" class="button secondary small" id="show-embed"><span data-icon="code-xml"></span>embed</button>
+          <button id="publish-button" class="button primary small" type="submit" form="card-form"><span id="publish-label">publish</span></button>
+        </div>
+      </div>
+      <div id="export-menu" class="toolbar-menu" popover>
+        <button type="button" id="copy-message-json"><span data-icon="copy"></span>copy json</button>
+        <button type="button" id="download-json"><span data-icon="download"></span>download json</button>
+      </div>
+      <div class="maker-tabs">
+        <div class="maker-tablist" role="tablist" aria-label="card maker">
+          <button id="edit-tab" type="button" role="tab" aria-selected="true" aria-controls="card-form" tabindex="0">edit</button>
+          <button id="preview-tab" type="button" role="tab" aria-selected="false" aria-controls="live-preview" tabindex="-1">preview</button>
+        </div>
+        <button type="button" id="actions-toggle" class="text-button" popovertarget="mobile-actions-menu">actions<span data-icon="chevron-down"></span></button>
+      </div>
+      <div id="mobile-actions-menu" class="toolbar-menu" popover></div>
+      </div>
+      <div class="maker-layout">
+      <form id="card-form" aria-labelledby="edit-tab" novalidate>
+        <aside id="editor-notice" class="editor-notice" role="status" aria-live="polite" hidden>
+          <p id="editor-notice-text"></p>
+        </aside>
+        <section id="editor-errors" class="form-section error-summary" aria-labelledby="errors-heading" hidden>
+          <div class="card-titlebar"><h2 id="errors-heading" class="form-section-heading">fix these before publishing</h2></div>
+          <ul id="validation-list"></ul>
+          <p class="form-status" id="form-status" role="status" aria-live="polite"></p>
+        </section>
+        <div class="form-section first-section">
+          <div class="card-titlebar"><h2 class="form-section-heading">link details</h2></div>
+          <label for="source-url">destination url</label>
+          <input id="source-url" type="url" placeholder="https://example.com" required maxlength="2048" autocomplete="url">
+          <button type="button" class="text-button template-link" id="show-url-import"><span data-icon="link"></span>use this link’s embed as a template</button>
+          <label for="title">card name</label>
+          <input id="title" maxlength="256" required placeholder="your card">
+          <label for="slug">custom link</label>
+          <div class="slug-field"><span id="slug-prefix"></span><input id="slug" required maxlength="60" pattern="[a-z0-9]+(-[a-z0-9]+)*" placeholder="your-title" spellcheck="false" autocapitalize="off" aria-describedby="slug-hint"></div>
+          <p id="slug-hint" class="hint"></p>
+          <details class="metadata-options">
+            <summary>fallback description<span data-icon="chevron-down"></span></summary>
+            <label for="description" class="sr-only">fallback description</label>
+            <textarea id="description" rows="2" maxlength="4096"></textarea>
           </details>
-          <div class="preview-explainer">
-            <span class="mini-mark" aria-hidden="true">↗</span><p>your links stay links.<br><span>no bot to invite. no extra click to find the button.</span></p>
+        </div>
+        <section class="form-section appearance-options" aria-labelledby="appearance-heading">
+          <div class="card-titlebar"><h2 class="form-section-heading" id="appearance-heading">appearance</h2></div>
+          <div class="color-field"><label for="color">accent</label><input id="color" type="text" value="#5865f2" maxlength="7" pattern="#[0-9a-fA-F]{6}" spellcheck="false" autocomplete="off" aria-label="accent color" data-coloris><label class="check-field">none<input type="checkbox" role="switch" id="no-accent"></label><label class="check-field">spoiler<input type="checkbox" role="switch" id="card-spoiler"></label></div>
+        </section>
+        <div class="form-section content-section">
+          <div class="card-titlebar"><h2 class="form-section-heading">content</h2><span class="field-meta" id="component-count">1 / 40</span></div>
+          <div id="component-list"></div>
+          <h3 class="add-component-heading">add a new component</h3>
+          <div class="add-component">
+            <label class="sr-only" for="component-type">component type</label>
+            <select id="component-type"><option value="10">text</option><option value="9">section + thumbnail</option><option value="12">image / video gallery</option><option value="1">link buttons</option><option value="14">separator</option></select>
+            <button type="button" id="add-component" class="button secondary small"><span data-icon="plus"></span>add</button>
+          </div>
+          <p class="templates">template: <button type="button" data-template="launch">launch</button><button type="button" data-template="portfolio">portfolio</button><button type="button" data-template="event">event</button></p>
+
+        </div>
+
+        <section class="danger-zone" aria-labelledby="danger-heading">
+          <div class="card-titlebar"><h2 id="danger-heading">danger zone</h2></div>
+          <p>actions here are destructive and should be taken with care :p</p>
+          <div class="danger-actions">
+            <button id="delete-card" class="button danger small" type="button" hidden><span data-icon="trash-2"></span>delete card</button>
+            <button id="reset" class="button danger secondary small" type="button">clear changes</button>
+          </div>
+        </section>
+      </form>
+      <aside class="preview-panel" id="live-preview" aria-label="discord preview">
+        <div class="discord-window" data-preview-theme="dark">
+          <div class="channel-bar">
+            <div class="channel-name"><span aria-hidden="true">#</span> showcase</div>
+            <div class="preview-controls">
+              <span id="byte-count" class="field-meta">0 / 3,000 bytes</span>
+              <div class="preview-themes" role="group" aria-label="discord preview theme"><button type="button" data-preview-theme="light" aria-label="light preview" aria-pressed="false" title="light preview"><span data-icon="sun"></span></button><button type="button" data-preview-theme="dark" aria-label="dark preview" aria-pressed="true" title="dark preview"><span data-icon="moon"></span></button></div>
+            </div>
+          </div>
+          <div class="discord-message">
+            <img class="discord-avatar" src="https://github.com/schmayterling.png" alt="" referrerpolicy="no-referrer">
+            <div class="discord-message-content">
+              <p class="message-author">may 🦋 <span>today at 12:00</span></p>
+              <p class="message-link" id="preview-url"></p>
+              <article class="discord-card" id="preview-card"></article>
+            </div>
           </div>
         </div>
       </aside>
-    </div>
+      </div>
 
-    <section class="how-section page-width" id="how-it-works" aria-labelledby="how-heading">
-      <div><p class="eyebrow">behind the card</p><h2 id="how-heading">small link.<br>better first impression.</h2></div>
-      <div class="how-copy"><p>publish a card, then paste its link into discord. discord reads the card from our server and puts your text, images, and buttons right in the conversation.</p><p class="hint">preview is an approximation. final rendering depends on discord and whether it can fetch your images. standard link metadata is included as a fallback.</p><a href="https://docs.discord.com/developers/link-previews/component-embeds" target="_blank" rel="noopener noreferrer" class="text-link">read discord’s component embed docs ↗</a></div>
+
     </section>
+
+    <footer class="site-footer">
+      <p>this site is free to use.</p>
+      <p>made by <a href="https://ryanaque.com" target="_blank" rel="noopener noreferrer">may</a> <span aria-hidden="true">·</span> <a href="https://github.com/schmayterling/linkbed" target="_blank" rel="noopener noreferrer">this site is open source!</a></p>
+    </footer>
   </main>
-  <footer class="site-footer page-width"><span>lembed</span><span>give good things a good entrance.</span></footer>
-  <dialog id="account-dialog" aria-labelledby="account-heading">
-    <div class="section-title"><h2 id="account-heading">your cards, anywhere.</h2><button type="button" class="text-button" id="close-account" aria-label="close account dialog">close ×</button></div>
-    <div id="account-signed-out">
-      <p class="hint">create an account to get a sign-in token. save it in a password manager — it is your only way back in.</p>
-      <button type="button" id="create-account" class="button primary">create account</button>
-      <form id="sign-in-form">
-        <label for="sign-in-token">already have a token?</label>
-        <input id="sign-in-token" type="password" placeholder="paste your lembed token" autocomplete="current-password" spellcheck="false" required>
-        <button type="submit" class="button secondary">sign in</button>
-      </form>
+  <dialog id="report-dialog" class="tool-dialog account-dialog" aria-labelledby="report-heading">
+    <div class="card-titlebar"><h2 id="report-heading">report abuse</h2><button type="button" class="text-button" data-close aria-label="close abuse report"><span data-icon="x"></span></button></div>
+    <form id="report-form" novalidate>
+      <label for="report-url">link to report</label>
+      <input id="report-url" type="url" required maxlength="2048" placeholder="https://linkbed.me/your-card" autocomplete="url" spellcheck="false" autofocus>
+      <label class="report-confirm" for="report-confirm"><input id="report-confirm" type="checkbox" required aria-describedby="report-confirm-error"><span>i confirm that this link contains abusive content. misuse of this form may bar me from creating linkbeds or reporting other instances.</span></label>
+      <p id="report-confirm-error" class="field-error" hidden></p>
+      <p id="report-error" class="form-status" role="status"></p>
+      <div class="dialog-actions"><button type="button" class="button secondary small" data-close>cancel</button><button type="submit" class="button primary small" id="send-report">send report</button></div>
+    </form>
+  </dialog>
+  <dialog id="sign-in-dialog" class="tool-dialog account-dialog" aria-labelledby="sign-in-heading">
+    <div class="card-titlebar"><h2 id="sign-in-heading">sign in</h2><button type="button" class="text-button" data-close aria-label="close sign in"><span data-icon="x"></span></button></div>
+    <form id="sign-in-form">
+      <label for="sign-in-token">enter your access token</label>
+      <input id="sign-in-token" type="password" placeholder="lembed_…" autocomplete="current-password" spellcheck="false" required autofocus aria-describedby="sign-in-error">
+      <p id="sign-in-error" class="form-status" role="status"></p>
+      <div class="dialog-actions"><button type="button" class="button secondary small" data-close>cancel</button><button type="submit" class="button primary small">sign in</button></div>
+    </form>
+  </dialog>
+  <dialog id="account-new-token" class="tool-dialog account-dialog token-admonition" aria-labelledby="token-heading">
+    <div class="card-titlebar"><h2 id="token-heading">keep your access token safe</h2></div>
+    <p class="token-warning">here is your access token, this will only be shown once so <strong>do not lose it</strong>. your cards will no longer be editable if you lose this token.</p>
+    <div class="token-block">
+      <code id="new-token"></code>
+      <button type="button" class="copy-token" id="copy-token" aria-label="copy access token">copy</button>
     </div>
-    <div id="account-new-token" hidden>
-      <p>save your sign-in token somewhere safe.</p>
-      <p class="hint">shown once. anyone with it can edit your cards. we cannot recover it for you.</p>
-      <label for="new-token">your sign-in token</label>
-      <input id="new-token" type="password" readonly autocomplete="off" aria-describedby="token-help">
-      <div class="token-actions"><button type="button" class="button secondary" id="copy-token">copy token</button><button type="button" class="button secondary" id="download-token">download token</button></div>
-      <p id="token-help" class="hint">a password manager is best. if downloaded, move the file somewhere private.</p>
-      <label class="token-confirm"><input type="checkbox" id="token-saved">i saved my token somewhere safe</label>
-      <button type="button" id="finish-account" class="button primary" disabled>continue</button>
+    <div class="dialog-actions">
+      <button type="button" class="button secondary small" id="finish-account">done</button>
+      <button type="button" class="button secondary small" id="download-token" aria-live="polite">download</button>
     </div>
-    <div id="account-signed-in" hidden>
-      <p>you’re signed in. your cards are saved to your account.</p>
-      <p class="hint">use your saved token to sign in on another device. keep it private.</p>
-      <button type="button" id="sign-out" class="button secondary">sign out</button>
-    </div>
-    <p id="account-error" class="form-status" role="status" aria-live="polite"></p>
+  </dialog>
+  <dialog id="json-panel" class="tool-dialog json-panel" aria-labelledby="json-heading">
+    <div class="card-titlebar"><h2 id="json-heading">edit json</h2><button type="button" class="text-button" data-close aria-label="close json"><span data-icon="x"></span></button></div>
+    <label for="component-json" class="sr-only">component, message, or discohook json</label>
+    <textarea id="component-json" rows="12" spellcheck="false" placeholder="paste component, message, or discohook json"></textarea>
+    <div class="json-actions"><button type="button" id="apply-json" class="button primary small">apply json</button><button type="button" id="format-json" class="text-button">format</button><button type="button" id="copy-json" class="text-button">copy json</button><button type="button" id="import-json-button" class="text-button"><span data-icon="file-json"></span>open file</button><input id="import-json" type="file" accept=".json,application/json" hidden></div>
+    <p id="json-error" class="form-status" role="status"></p>
+  </dialog>
+  <dialog id="url-import-dialog" class="tool-dialog" aria-labelledby="url-import-heading" aria-describedby="url-import-note">
+    <div class="card-titlebar"><h2 id="url-import-heading">use link as template?</h2><button type="button" class="text-button" data-close aria-label="close url import"><span data-icon="x"></span></button></div>
+    <p id="url-import-note" class="hint">this will replace your current embed.</p>
+    <form id="url-import-form">
+      <label for="url-import-value" class="sr-only">url to import</label>
+      <input type="url" id="url-import-value" required maxlength="2048" placeholder="https://example.com" autocomplete="url">
+      <p id="url-import-error" class="form-status" role="status"></p>
+      <div class="dialog-actions"><button type="button" class="button secondary small" data-close autofocus>cancel</button><button id="import-button" class="button primary small" type="submit">use template</button></div>
+    </form>
+  </dialog>
+  <dialog id="embed-dialog" class="tool-dialog" aria-labelledby="embed-heading">
+    <div class="card-titlebar"><h2 id="embed-heading">embed</h2><button type="button" class="text-button" data-close aria-label="close embed"><span data-icon="x"></span></button></div>
+    <p class="hint">paste inside your page’s &lt;head&gt;.</p>
+    <textarea id="embed-code" readonly rows="8" spellcheck="false" aria-label="discord embed script"></textarea>
+    <div class="json-actions"><button type="button" class="button primary small" id="copy-code">copy embed code</button></div>
+  </dialog>
+  <dialog id="confirm-dialog" class="tool-dialog confirm-dialog" aria-labelledby="confirm-heading">
+    <div class="card-titlebar"><h2>confirm action</h2></div>
+    <p id="confirm-heading"></p>
+    <form method="dialog" class="dialog-actions">
+      <button class="button secondary small" value="cancel" autofocus>cancel</button>
+      <button id="confirm-action" class="button danger small" value="confirm">continue</button>
+    </form>
   </dialog>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 </body>

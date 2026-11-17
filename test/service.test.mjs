@@ -8,6 +8,8 @@ import { normalizeCard, embedJson, payloadBytes } from '../public/model.mjs';
 import { isPublicAddress, resolvePublicUrl, publicUrl, metadataFromHtml } from '../metadata.mjs';
 import { createApp } from '../server.mjs';
 
+const sessionCookie = response => response.headers.getSetCookie().find(value => value.startsWith('lembed_session=')).split(';')[0];
+
 const card = { title: 'hello', description: 'a launch', url: 'https://example.com/', color: '#5865f2', buttons: [{ label: 'visit', url: 'https://example.com/' }], images: [] };
 
 test('payload uses one container, link buttons, escaped script text and byte limit', () => {
@@ -65,13 +67,13 @@ test('token accounts, ownership, logout, expiry, SSR and restart persistence', a
   });
   await start();
   try {
-    assert.equal((await request('/api/cards')).status, 401);
+    assert.deepEqual(await request('/api/cards').then(r => r.json()), []);
     assert.equal((await request('/api/signup', 'POST', {}, '', 'https://evil.example')).status, 403);
     const signup = await request('/api/signup', 'POST', {});
     assert.equal(signup.status, 201);
     const { token } = await signup.json();
     assert.match(token, /^lembed_[A-Za-z0-9_-]{43}$/);
-    let session = signup.headers.get('set-cookie').split(';')[0];
+    let session = sessionCookie(signup);
     assert.ok(signup.headers.get('set-cookie').includes('HttpOnly'));
     assert.ok(signup.headers.get('set-cookie').includes('SameSite=Strict'));
     assert.ok(!session.includes(token));
@@ -88,32 +90,83 @@ test('token accounts, ownership, logout, expiry, SSR and restart persistence', a
     assert.equal((await request('/api/cards', 'POST', { ...card, slug: 'private', url: 'https://127.0.0.1/' }, session)).status, 400);
     const created = await request('/api/cards', 'POST', { ...card, title: '<script>alert(1)</script>', slug: 'launch' }, session);
     assert.equal(created.status, 201);
-    assert.equal((await created.json()).revision, 1);
+    const published = await created.json();
+    assert.equal(published.revision, 1);
+    assert.equal(published.url, 'http://localhost:3000/launch');
+    assert.equal((await request('/launch')).status, 200);
+    assert.equal((await request('/api/cards', 'POST', { ...card, slug: 'healthz' }, session)).status, 400);
     assert.equal((await request('/api/cards', 'POST', { ...card, slug: 'launch' }, session)).status, 409);
     const page = await fetch(base + '/p/launch', { headers: { 'user-agent': 'Discordbot/2.0' } });
     const html = await page.text();
     assert.equal(page.status, 200);
     assert.match(html, /property="og:title"/);
     assert.match(html, /script id="discord:component-embed"/);
+    assert.match(html, /src="\/redirect.mjs"/);
+    assert.match(html, /data-redirect href="https:\/\/example.com\/"/);
+    assert.equal(page.headers.get("location"), null);
     assert.ok(!html.includes('<script>alert(1)</script>'));
     const payload = JSON.parse(html.match(/<script id="discord:component-embed" type="application\/json">(.+?)<\/script>/s)[1]);
     assert.equal(payload.component.type, 17);
     assert.equal((await request('/api/index?card=launch')).status, 200);
+    for (const asset of ['/components.mjs', '/icons.mjs', '/code-editor.mjs', '/vendor/markdown-it.mjs', '/vendor/codemirror.mjs', '/vendor/coloris.mjs', '/emoji-picker.mjs', '/vendor/sortable.mjs', '/vendor/emoji-picker.mjs', '/vendor/emoji-database.mjs']) {
+      const assetResponse = await request(asset);
+      assert.equal(assetResponse.status, 200);
+      assert.match(assetResponse.headers.get('content-type'), /javascript/);
+    }
+    const fullCard = normalizeCard({
+      ...card, color: null, component: {
+        type: 17, spoiler: true, accent_color: null, components: [
+          { type: 9, components: [{ type: 10, content: '## full card' }], accessory: { type: 11, media: { url: 'http://example.com/thumb.png' }, description: 'thumbnail' } },
+          { type: 12, items: [{ media: { url: 'https://example.com/clip.mp4' }, spoiler: true }] },
+          { type: 14, divider: false, spacing: 2 },
+          { type: 1, components: [{ type: 2, style: 5, url: 'http://example.com/side', emoji: { name: '🔥', id: null }, disabled: true }] },
+        ],
+      },
+    });
+    const fullCreated = await request('/api/cards', 'POST', { ...fullCard, slug: 'full-card' }, session);
+    assert.equal(fullCreated.status, 201);
+    const fullStored = await request('/api/cards/full-card', 'GET', undefined, session).then(response => response.json());
+    assert.deepEqual(fullStored.component, fullCard.component);
+    const fullHtml = await request('/full-card').then(response => response.text());
+    const fullPayload = JSON.parse(fullHtml.match(/<script id="discord:component-embed" type="application\/json">(.+?)<\/script>/s)[1]);
+    assert.deepEqual(fullPayload.component, fullCard.component);
+    assert.ok(!fullHtml.includes('og:image" content="https://example.com/clip.mp4'));
+    assert.ok(!fullHtml.includes('theme-color" content="null'));
+    const privateButton = structuredClone(fullCard);
+    privateButton.component.components[3].components[0].url = 'http://127.0.0.1/';
+    assert.equal((await request('/api/cards', 'POST', { ...privateButton, slug: 'private-button' }, session)).status, 400);
+    assert.equal((await request('/api/cards/full-card', 'DELETE', undefined, session)).status, 200);
+
+    assert.equal((await request('/api/cards', 'POST', { ...card, slug: 'custom-path' }, session)).status, 201);
+    const moved = await request('/api/cards/custom-path', 'PUT', { ...card, slug: 'another-path' }, session);
+    assert.equal(moved.status, 200);
+    const movedCard = await moved.json();
+    assert.equal(movedCard.slug, 'another-path');
+    assert.equal(movedCard.url, 'http://localhost:3000/another-path');
+    assert.equal(movedCard.revision, 2);
+    assert.equal((await request('/custom-path')).status, 404);
+    assert.equal((await request('/another-path')).status, 200);
+    assert.equal((await request('/api/cards/another-path', 'PUT', { ...card, slug: 'launch' }, session)).status, 409);
+    assert.equal((await request('/api/cards/another-path', 'GET', undefined, session)).status, 200);
+    assert.equal((await request('/api/cards/another-path', 'PUT', { ...card, slug: 'healthz' }, session)).status, 400);
+    assert.equal((await request('/api/cards/another-path', 'DELETE', undefined, session)).status, 200);
 
     const otherSignup = await request('/api/signup', 'POST', {});
-    const otherSession = otherSignup.headers.get('set-cookie').split(';')[0];
+    const otherSession = sessionCookie(otherSignup);
     assert.equal((await request('/api/cards/launch', 'PUT', card, otherSession)).status, 404);
+    assert.equal((await request('/api/cards/launch', 'PUT', { ...card, slug: 'stolen' }, otherSession)).status, 404);
+    assert.equal((await request('/stolen')).status, 404);
     assert.equal((await request('/api/cards/launch', 'DELETE', undefined, otherSession)).status, 404);
     const updated = await request('/api/cards/launch', 'PUT', { ...card, title: 'updated' }, session);
     assert.equal((await updated.json()).revision, 2);
 
     await request('/api/logout', 'POST', {}, session);
     assert.equal((await request('/api/session', 'GET', undefined, session).then(r => r.json())).authenticated, false);
-    assert.equal((await request('/api/cards', 'GET', undefined, session)).status, 401);
+    assert.deepEqual(await request('/api/cards', 'GET', undefined, session).then(r => r.json()), []);
     assert.equal((await request('/api/login', 'POST', { token: 'wrong' })).status, 401);
     const login = await request('/api/login', 'POST', { token });
     assert.equal(login.status, 200);
-    session = login.headers.get('set-cookie').split(';')[0];
+    session = sessionCookie(login);
     assert.equal((await login.json()).token, undefined);
     assert.equal((await request('/api/cards', 'GET', undefined, session).then(r => r.json()))[0].title, 'updated');
 
@@ -125,13 +178,142 @@ test('token accounts, ownership, logout, expiry, SSR and restart persistence', a
     const expiry = new DatabaseSync(dbPath);
     expiry.prepare('UPDATE sessions SET expires_at = 0').run();
     expiry.close();
-    assert.equal((await request('/api/cards', 'GET', undefined, session)).status, 401);
+    assert.deepEqual(await request('/api/cards', 'GET', undefined, session).then(r => r.json()), []);
     const relogin = await request('/api/login', 'POST', { token });
-    session = relogin.headers.get('set-cookie').split(';')[0];
+    session = sessionCookie(relogin);
     assert.equal((await request('/api/cards/launch', 'DELETE', undefined, session)).status, 200);
     assert.equal((await fetch(base + '/p/launch')).status, 404);
   } finally {
     await stop();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('guest cards stay live without a token and transfer ownership on sign-in', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'linkbed-guest-'));
+  const dbPath = join(directory, 'cards.sqlite');
+  const { server, close } = createApp({ dbPath, origin: 'https://linkbed.ryana.dev' });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const request = (path, method = 'GET', data, cookie = '', origin = 'https://linkbed.ryana.dev') => fetch(base + path, {
+    method, headers: { 'content-type': 'application/json', origin, cookie },
+    body: data === undefined ? undefined : JSON.stringify(data),
+  });
+  const sessionCookie = response => response.headers.getSetCookie().find(value => value.startsWith('lembed_session=')).split(';')[0];
+  try {
+    assert.deepEqual(await request('/api/cards').then(r => r.json()), []);
+    assert.equal((await request('/api/guest', 'POST', {}, '', 'https://evil.example')).status, 403);
+
+    const created = await request('/api/guest', 'POST', {});
+    assert.equal(created.status, 201);
+    const guest = await created.json();
+    assert.equal(guest.authenticated, false);
+    assert.equal(guest.guest, true);
+    assert.equal(guest.expiresAt, undefined);
+    const firstCookie = sessionCookie(created);
+    assert.match(created.headers.get('set-cookie'), /HttpOnly; SameSite=Strict; Path=\//);
+    assert.match(created.headers.get('set-cookie'), /; Secure/);
+    assert.ok(!JSON.stringify(guest).includes(firstCookie.split('=')[1]));
+    assert.deepEqual(await request('/api/guest', 'POST', {}, firstCookie).then(r => r.json()), guest);
+
+    const { DatabaseSync } = await import('node:sqlite');
+    const inspect = new DatabaseSync(dbPath);
+    assert.equal(inspect.prepare('SELECT COUNT(*) AS count FROM accounts').get().count, 0);
+    assert.ok(!JSON.stringify(inspect.prepare('SELECT * FROM sessions').all()).includes(firstCookie.split('=')[1]));
+    inspect.close();
+    const firstCard = await request('/api/cards', 'POST', { ...card, slug: 'guest-card', expiresAt: 0 }, firstCookie);
+    assert.equal(firstCard.status, 201);
+    assert.equal((await firstCard.json()).expiresAt, undefined);
+    assert.equal((await request('/guest-card')).headers.get('cache-control'), 'public, max-age=60');
+    assert.equal((await request('/api/cards', 'POST', { ...card, slug: 'guest-card-two' }, firstCookie)).status, 201);
+    assert.equal((await request('/api/cards/guest-card', 'PUT', { ...card, title: 'guest edit' }, firstCookie)).status, 200);
+    const other = await request('/api/guest', 'POST', {});
+    const otherCookie = sessionCookie(other);
+    assert.deepEqual(await request('/api/cards', 'GET', undefined, otherCookie).then(r => r.json()), []);
+    assert.equal((await request('/api/cards/guest-card', 'PUT', card, otherCookie)).status, 404);
+    assert.equal((await request('/api/cards/guest-card', 'DELETE', undefined, otherCookie)).status, 404);
+
+    const update = await request('/api/cards/guest-card', 'PUT', { ...card, expiresAt: 0 }, firstCookie);
+    assert.equal(update.status, 200);
+    assert.equal((await update.json()).expiresAt, undefined);
+    assert.ok(!update.headers.getSetCookie().some(value => value.startsWith('lembed_session=')));
+    assert.equal((await request('/api/cards/guest-card', 'GET', undefined, firstCookie).then(r => r.json())).expiresAt, undefined);
+    assert.equal((await request('/api/cards', 'GET', undefined, firstCookie).then(r => r.json())).length, 2);
+    const staleLogout = await request('/api/logout', 'POST', {}, firstCookie);
+    assert.equal((await staleLogout.json()).guest, true);
+    assert.equal(staleLogout.headers.get('set-cookie'), null);
+    assert.equal((await request('/api/cards', 'GET', undefined, firstCookie).then(r => r.json())).length, 2);
+
+    const upgraded = await request('/api/signup', 'POST', {}, firstCookie);
+    assert.equal(upgraded.status, 201);
+    const { token } = await upgraded.json();
+    const accountCookie = sessionCookie(upgraded);
+    assert.notEqual(accountCookie, firstCookie);
+    assert.equal((await request('/api/signup', 'POST', {}, accountCookie)).status, 409);
+    assert.equal((await request('/api/session', 'GET', undefined, accountCookie).then(r => r.json())).authenticated, true);
+    assert.equal((await request('/api/cards', 'GET', undefined, accountCookie).then(r => r.json())).length, 2);
+    assert.deepEqual(await request('/api/cards', 'GET', undefined, firstCookie).then(r => r.json()), []);
+    assert.equal((await request('/api/cards/guest-card', 'PUT', card, firstCookie)).status, 401);
+    const recovered = await request('/api/login', 'POST', { token });
+    const recoveredCards = await request('/api/cards', 'GET', undefined, sessionCookie(recovered)).then(r => r.json());
+    assert.equal(recoveredCards.length, 2);
+    assert.ok(recoveredCards.every(card => card.expiresAt === undefined));
+
+    assert.equal((await request('/api/cards', 'POST', { ...card, slug: 'merged-card' }, otherCookie)).status, 201);
+    const failedLogin = await request('/api/login', 'POST', { token: 'wrong' }, otherCookie);
+    assert.equal(failedLogin.status, 401);
+    assert.equal((await request('/api/cards', 'GET', undefined, otherCookie).then(r => r.json())).length, 1);
+    const merged = await request('/api/login', 'POST', { token }, otherCookie);
+    assert.equal((await request('/api/cards', 'GET', undefined, sessionCookie(merged)).then(r => r.json())).length, 3);
+    assert.equal((await request('/api/cards/merged-card', 'DELETE', undefined, otherCookie)).status, 401);
+
+    const freshGuest = await request('/api/guest', 'POST', {});
+    const expiredCookie = sessionCookie(freshGuest);
+    assert.equal((await request('/api/cards', 'POST', { ...card, slug: 'permanent-card' }, expiredCookie)).status, 201);
+    const expire = new DatabaseSync(dbPath);
+    expire.prepare('UPDATE sessions SET expires_at = 0 WHERE owner LIKE ?').run('guest:%');
+    expire.close();
+    assert.equal((await request('/api/session', 'GET', undefined, expiredCookie).then(r => r.json())).guest, false);
+    assert.deepEqual(await request('/api/cards', 'GET', undefined, expiredCookie).then(r => r.json()), []);
+    assert.equal((await request('/api/cards/permanent-card', 'PUT', card, expiredCookie)).status, 401);
+    assert.equal((await request('/permanent-card')).status, 200);
+    assert.equal((await request('/p/permanent-card')).status, 200);
+    assert.equal((await request('/permanent-card', 'HEAD')).status, 200);
+  } finally {
+    server.closeAllConnections();
+    await new Promise(resolve => server.close(resolve));
+    await close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('removing card expiry preserves existing cards and restores their public links', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'linkbed-migrate-'));
+  const dbPath = join(directory, 'cards.sqlite');
+  const { DatabaseSync } = await import('node:sqlite');
+  const old = new DatabaseSync(dbPath);
+  old.exec('CREATE TABLE cards (slug TEXT PRIMARY KEY, owner TEXT NOT NULL, card TEXT NOT NULL, revision INTEGER NOT NULL, updated_at INTEGER NOT NULL, expires_at INTEGER)');
+  for (const owner of ['guest', 'account']) old.prepare('INSERT INTO cards VALUES (?, ?, ?, 1, ?, ?)').run(owner, owner, JSON.stringify(card), Date.now(), owner === 'guest' ? 0 : null);
+  old.close();
+  const { server, close } = createApp({ dbPath });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    assert.equal((await fetch(base + '/guest')).status, 200);
+    assert.equal((await fetch(base + '/account')).status, 200);
+    const inspect = new DatabaseSync(dbPath);
+    try {
+      assert.ok(!inspect.prepare('PRAGMA table_info(cards)').all().some(column => column.name === 'expires_at'));
+      const rows = inspect.prepare('SELECT owner, card, revision FROM cards ORDER BY owner').all();
+      assert.deepEqual(rows.map(row => row.owner), ['account', 'guest']);
+      assert.ok(rows.every(row => row.card === JSON.stringify(card) && row.revision === 1));
+    } finally { inspect.close(); }
+  } finally {
+    server.closeAllConnections();
+    await new Promise(resolve => server.close(resolve));
+    await close();
     rmSync(directory, { recursive: true, force: true });
   }
 });
@@ -150,10 +332,10 @@ test('auth throttling persists and legacy local cards migrate on account creatio
     const { createHash } = await import('node:crypto');
     const legacyToken = 'a'.repeat(64);
     const inspect = new DatabaseSync(dbPath);
-    inspect.prepare('INSERT INTO cards VALUES (?, ?, ?, 1, ?)').run('old-card', createHash('sha256').update(legacyToken).digest('hex'), JSON.stringify(card), Date.now());
+    inspect.prepare('INSERT INTO cards (slug, owner, card, revision, updated_at) VALUES (?, ?, ?, 1, ?)').run('old-card', createHash('sha256').update(legacyToken).digest('hex'), JSON.stringify(card), Date.now());
     inspect.close();
     const signup = await fetch(base + '/api/signup', { method: 'POST', headers: { ...headers, cookie: 'lembed_owner=' + legacyToken }, body: '{}' });
-    const session = signup.headers.get('set-cookie').split(';')[0];
+    const session = sessionCookie(signup);
     const cards = await fetch(base + '/api/cards', { headers: { cookie: session } }).then(r => r.json());
     assert.equal(cards[0].slug, 'old-card');
     for (let i = 0; i < 9; i++) assert.equal((await fetch(base + '/api/login', { method: 'POST', headers, body: '{"token":"wrong"}' })).status, 401);

@@ -4,14 +4,14 @@ import { isIP } from 'node:net';
 import { createGunzip, createInflate, createBrotliDecompress } from 'node:zlib';
 import { loadBuffer } from 'cheerio';
 import ipaddr from 'ipaddr.js';
-import { httpsUrl, ValidationError } from './public/model.mjs';
+import { httpsUrl, publicHttpUrl, ValidationError } from './public/model.mjs';
 
 export function isPublicAddress(address) {
   try { return ipaddr.process(address).range() === 'unicast'; } catch { return false; }
 }
 
-export function publicUrl(value, label = 'url') {
-  const url = new URL(httpsUrl(value, label));
+export function publicUrl(value, label = 'url', allowHttp = false) {
+  const url = new URL((allowHttp ? publicHttpUrl : httpsUrl)(value, label));
   const host = url.hostname.replace(/^\[|\]$/g, '');
   if (isIP(host) && !isPublicAddress(host)) throw new ValidationError('private network addresses are not allowed.');
   return url;
@@ -53,7 +53,7 @@ export async function fetchMetadata(value) {
         autoSelectFamily: false,
         signal,
         lookup: (_host, options, callback) => options.all ? callback(null, [record]) : callback(null, record.address, record.family),
-        headers: { 'user-agent': 'lembed/0.1 (link preview importer)', accept: 'text/html, application/xhtml+xml', 'accept-encoding': 'gzip, deflate, br' },
+        headers: { 'user-agent': 'linkbed/0.1 (link preview importer)', accept: 'text/html, application/xhtml+xml', 'accept-encoding': 'gzip, deflate, br' },
       }, resolve).on('error', reject);
     });
     if ([301, 302, 303, 307, 308].includes(response.statusCode)) {

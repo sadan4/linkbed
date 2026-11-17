@@ -18,7 +18,7 @@ const slug = 'remote-check-' + Date.now();
 try {
   const response = await call('/api/signup', 'POST', {});
   assert.equal(response.status, 201);
-  session = response.headers.get('set-cookie').split(';')[0];
+  session = response.headers.getSetCookie().find(value => value.startsWith('lembed_session=')).split(';')[0];
   ({ token } = await response.json());
   const card = { slug, title: 'remote database check', description: 'temporary check', url: 'https://example.com', color: '#5865f2', buttons: [], images: [] };
   assert.equal((await call('/api/cards', 'POST', card, session)).status, 201);
@@ -26,7 +26,7 @@ try {
   assert.equal((await call('/api/logout', 'POST', {}, session)).status, 200);
   const login = await call('/api/login', 'POST', { token });
   assert.equal(login.status, 200);
-  session = login.headers.get('set-cookie').split(';')[0];
+  session = login.headers.getSetCookie().find(value => value.startsWith('lembed_session=')).split(';')[0];
   assert.equal((await call('/api/cards/' + slug, 'GET', undefined, session)).status, 200);
   assert.equal((await call('/api/cards/' + slug, 'DELETE', undefined, session)).status, 200);
   console.log('remote database: account, sign-in, publish, SSR, and delete passed');
