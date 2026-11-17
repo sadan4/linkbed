@@ -6,7 +6,8 @@
   "outputDirectory": "public",
   "functions": {
     "api/index.js": {
-      "maxDuration": 15
+      "maxDuration": 15,
+      "includeFiles": "editor.html"
     }
   },
   "redirects": [
@@ -18,6 +19,7 @@
     }
   ],
   "rewrites": [
+    { "source": "/", "destination": "/api/index?home=1" },
     { "source": "/terms", "destination": "/terms.html" },
     { "source": "/privacy", "destination": "/privacy.html" },
     {

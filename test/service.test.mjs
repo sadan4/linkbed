@@ -29,6 +29,50 @@ test('payload uses one container, link buttons, escaped script text and byte lim
   assert.throws(() => normalizeCard({ ...card, buttons: [{ label: 'visit', url: 'https://example.com/' + '界'.repeat(60) }] }), /encoding/);
 });
 
+test('homepage follows the saved linkbed card without rebuilding and survives a missing card', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'linkbed-home-test-'));
+  const dbPath = join(directory, 'cards.sqlite');
+  const { server, close } = createApp({ dbPath, databaseUrl: '', origin: 'https://cards.example.com' });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const base = 'http://127.0.0.1:' + server.address().port;
+  const payload = html => JSON.parse(html.match(/<script id="discord:component-embed" type="application\/json">(.+?)<\/script>/s)[1]);
+  let inspect;
+  try {
+    const empty = await fetch(base);
+    assert.equal(empty.status, 200);
+    assert.ok((await empty.text()).includes('id="card-form"'));
+    const { DatabaseSync } = await import('node:sqlite');
+    inspect = new DatabaseSync(dbPath);
+    const value = normalizeCard({ ...card, title: 'latest <title>', description: 'copy " & </script>', component: { type: 17, components: [{ type: 10, content: 'latest </script> $&' }] } });
+    inspect.prepare('INSERT INTO cards (slug, owner, card, revision, updated_at) VALUES (?, ?, ?, 1, ?)').run('linkbed', 'test', JSON.stringify(value), Date.now());
+    const response = await fetch(base);
+    const html = await response.text();
+    assert.equal(response.headers.get('set-cookie'), null);
+    assert.equal(response.headers.get('cache-control'), 'no-cache');
+    assert.deepEqual(payload(html), JSON.parse(embedJson(value)));
+    assert.match(html, /property="og:title" content="latest &lt;title&gt;"/);
+    assert.match(html, /property="og:url" content="https:\/\/cards.example.com\/"/);
+    assert.match(html, /copy &quot; &amp; &lt;\/script&gt;/);
+    assert.ok(!html.includes('content="copy "'));
+    assert.equal((await fetch(base, { method: 'HEAD' })).status, 200);
+    assert.equal(await (await fetch(base, { method: 'HEAD' })).text(), '');
+    const updated = { ...value, description: 'updated copy', component: { type: 17, components: [{ type: 10, content: 'updated card' }] } };
+    inspect.prepare('UPDATE cards SET card = ? WHERE slug = ?').run(JSON.stringify(updated), 'linkbed');
+    assert.deepEqual(payload(await (await fetch(base + '/api/index?home=1')).text()), JSON.parse(embedJson(updated)));
+    inspect.prepare('INSERT INTO banned_slugs (slug, banned_at) VALUES (?, ?)').run('linkbed', Date.now());
+    assert.ok(!(await (await fetch(base)).text()).includes('discord:component-embed'));
+    inspect.prepare('DELETE FROM cards WHERE slug = ?').run('linkbed');
+    assert.equal((await fetch(base)).status, 200);
+  } finally {
+    inspect?.close();
+    server.closeAllConnections();
+    await new Promise(resolve => server.close(resolve));
+    await close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test('URL import rejects private and disguised addresses, validates every DNS result', async () => {
   for (const address of ['127.0.0.1', '10.0.0.1', '192.168.1.1', '169.254.169.254', '100.64.0.1', '::1', '::ffff:127.0.0.1', 'fc00::1', 'fe80::1', '2001:db8::1']) assert.equal(isPublicAddress(address), false, address);
   assert.equal(isPublicAddress('1.1.1.1'), true);

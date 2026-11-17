@@ -6,7 +6,6 @@ import { createHandler, isLocalAdminRequest, securityHeaders } from './handler.m
 
 const root = dirname(fileURLToPath(import.meta.url));
 const staticFiles = {
-  '/': ['index.html', 'text/html; charset=utf-8'],
   '/terms': ['terms.html', 'text/html; charset=utf-8'],
   '/privacy': ['privacy.html', 'text/html; charset=utf-8'],
   '/privacy-emoji.png': ['privacy-emoji.png', 'image/png'],

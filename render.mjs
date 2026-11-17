@@ -1,6 +1,24 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { embedScript } from './public/model.mjs';
 
 export const escapeHtml = value => String(value).replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
+
+export function renderEditor(card, url) {
+  const e = escapeHtml;
+  const image = card?.images?.find(image => !/\.(mp4|webm|mov)(?:$|[?#])/i.test(image));
+  const description = card?.description || 'make custom discord cards with real buttons, images, and rich text.';
+  const metadata = `<meta name="description" content="${e(description)}">
+<meta property="og:title" content="${e(card?.title || 'linkbed')}">
+<meta property="og:description" content="${e(description)}">
+<meta property="og:type" content="website">
+<meta property="og:url" content="${e(url)}">
+${image ? `<meta property="og:image" content="${e(image)}">` : ''}
+${card?.color ? `<meta name="theme-color" content="${e(card.color)}">` : ''}
+${card ? embedScript(card) : ''}`;
+  return readFileSync(fileURLToPath(new URL('./editor.html', import.meta.url)), 'utf8')
+    .replace('<!-- card metadata -->', () => metadata);
+}
 
 export function renderCard(card, url) {
   const e = escapeHtml;

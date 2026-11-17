@@ -2,7 +2,7 @@ import { createHash, createHmac, randomBytes } from 'node:crypto';
 import { openDatabase } from './database.mjs';
 import { normalizeCard, normalizeSlug, normalizeReportLink, buildEmbed, componentUrls, payloadBytes, embedScript } from './public/model.mjs';
 import { fetchMetadata, publicUrl } from './metadata.mjs';
-import { renderCard } from './render.mjs';
+import { renderCard, renderEditor } from './render.mjs';
 
 export const securityHeaders = {
   'x-content-type-options': 'nosniff',
@@ -129,7 +129,8 @@ export function createHandler(options = {}) {
       const url = new URL(req.url, canonical);
       let path = url.pathname;
       if (path === '/api/index') {
-        if (url.searchParams.has('card')) path = '/p/' + url.searchParams.get('card');
+        if (url.searchParams.has('home')) path = '/';
+        else if (url.searchParams.has('card')) path = '/p/' + url.searchParams.get('card');
         else if (url.searchParams.has('route')) path = '/api/' + url.searchParams.get('route');
         else if (url.searchParams.has('health')) path = '/healthz';
       }
@@ -137,6 +138,20 @@ export function createHandler(options = {}) {
       if (path === '/p/admin' || (admin && !options.allowAdmin?.(req))) throw fail(404, 'page not found.');
       const write = !['GET', 'HEAD'].includes(req.method);
       if (write && !['/api/reports', '/api/guest', '/api/signup', '/api/login', '/api/logout', '/api/import'].includes(path) && !path.startsWith('/api/cards') && !admin) throw fail(404, 'page not found.');
+
+      if (path === '/' && ['GET', 'HEAD'].includes(req.method)) {
+        let card;
+        try {
+          const db = await connect();
+          const result = await db.execute("SELECT card FROM cards WHERE slug = 'linkbed' AND NOT EXISTS (SELECT 1 FROM banned_slugs WHERE slug = cards.slug)");
+          if (result.rows.length) card = JSON.parse(result.rows[0].card);
+        } catch (error) {
+          console.error('homepage embed unavailable:', error.code || error.name);
+        }
+        const html = renderEditor(card, canonical + '/');
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache' });
+        return res.end(req.method === 'HEAD' ? undefined : html);
+      }
       const db = await connect();
       if (write) {
         const origins = admin ? ['http://' + req.headers.host] : [canonical];
