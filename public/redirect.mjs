@@ -1,2 +1,5 @@
+import { isSelfDestination } from './model.mjs';
+
 const link = document.querySelector('[data-redirect]');
-if (link) location.replace(link.href);
+const pageUrl = document.querySelector('meta[property="og:url"]')?.content || location.href;
+if (link && !isSelfDestination(link.href, pageUrl)) location.replace(link.href);

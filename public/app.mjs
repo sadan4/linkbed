@@ -13,6 +13,7 @@ import {
   payloadBytes,
   embedScript,
   httpsUrl,
+  destinationUrl,
   MAX_BYTES,
 } from './model.mjs';
 import { createComposer, renderComponent, fieldValidator, autoFormatField } from './components.mjs';
@@ -89,7 +90,7 @@ Coloris({
 const fieldChecks = [
   fieldValidator(
     fields.url,
-    (value) => httpsUrl(value.trim(), 'destination url'),
+    (value) => destinationUrl(value.trim(), cardUrl(fields.slug.value)),
     'destination url',
   ),
   fieldValidator(fields.title, (value) => validateText(value, 'card name', 256, true), 'card name'),
@@ -1046,7 +1047,7 @@ publishForm.addEventListener('submit', async (event) => {
   }
   let saved = false;
   try {
-    const card = normalizeCard(draft());
+    const card = normalizeCard(draft(), cardUrl(fields.slug.value));
     setBusy(true);
     $('#publish-label').textContent = confirmPublish.textContent = 'saving…';
     $('#publish-error').textContent = '';

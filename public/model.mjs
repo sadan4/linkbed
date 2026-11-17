@@ -35,6 +35,31 @@ export function httpsUrl(value, label = 'url', max = 2048) {
   return publicUrl(value, label, max, false);
 }
 
+export function isSelfDestination(value, pageUrl) {
+  const destination = new URL(value);
+  const page = new URL(pageUrl);
+  const hosts = [page.hostname, 'linkbed.me', 'www.linkbed.me', 'linkbed.ryana.dev'];
+  if (!hosts.includes(destination.hostname.replace(/\.$/, ''))) return false;
+  const slug = page.pathname.split('/').filter(Boolean).at(-1);
+  let path = destination.pathname;
+  try {
+    path = decodeURIComponent(path);
+  } catch {}
+  path = path.replace(/\/$/, '');
+  return (
+    path === '/' + slug ||
+    path === '/p/' + slug ||
+    (path === '/api/index' && destination.searchParams.get('card') === slug)
+  );
+}
+
+export function destinationUrl(value, pageUrl) {
+  const url = httpsUrl(value, 'destination url');
+  if (pageUrl && isSelfDestination(url, pageUrl))
+    throw new ValidationError('destination url cannot be this card’s own link.');
+  return url;
+}
+
 export function publicHttpUrl(value, label = 'url', max = 2048) {
   return publicUrl(value, label, max, true);
 }
@@ -354,12 +379,12 @@ export function componentUrls(component) {
   return urls;
 }
 
-export function normalizeCard(value) {
+export function normalizeCard(value, pageUrl) {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new ValidationError('invalid card.');
   const title = text(value.title, 'title', 256, true);
   const description = text(value.description ?? '', 'description', 4096);
-  const url = httpsUrl(value.url, 'destination url', 2048);
+  const url = destinationUrl(value.url, pageUrl);
   const color = normalizeColor(value.color === undefined ? '#5865f2' : value.color);
   if ('component' in value) {
     const component = normalizeComponent(value.component);
